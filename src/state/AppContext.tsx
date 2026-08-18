@@ -1,12 +1,15 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import type { Session } from '@supabase/supabase-js'
 import type { DB, Minute, Note, NoteFolder, Project, Task, User } from '../types'
 import { api, isDemo } from '../lib/api'
 import { demoSession } from '../lib/localApi'
 import { supabase } from '../lib/supabaseClient'
+import { USER_COLORS } from '../lib/utils'
 
 interface AppCtx {
   loading: boolean
   demo: boolean
+  dataError: string | null
   users: User[]
   projects: Project[]
   tasks: Task[]
@@ -52,6 +55,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [db, setDb] = useState<DB>({ users: [], projects: [], tasks: [], notes: [], noteFolders: [], minutes: [] })
   const [loading, setLoading] = useState(true)
   const [sessionId, setSessionId] = useState<string | null>(() => (isDemo ? demoSession.get() : null))
+  const [sessionMeta, setSessionMeta] = useState<{ email: string; name: string } | null>(null)
+  const [dataError, setDataError] = useState<string | null>(null)
 
   // Arranque: en demo cargamos directo; con Supabase primero resolvemos la sesión.
   useEffect(() => {
@@ -62,12 +67,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
       })
       return
     }
+    const applySession = (session: Session | null) => {
+      const u = session?.user
+      setSessionId(u?.id ?? null)
+      setSessionMeta(
+        u
+          ? {
+              email: u.email ?? '',
+              name: (u.user_metadata?.name as string) || u.email?.split('@')[0] || 'Usuario',
+            }
+          : null,
+      )
+    }
     supabase!.auth.getSession().then(({ data }) => {
-      setSessionId(data.session?.user.id ?? null)
+      applySession(data.session)
       if (!data.session) setLoading(false)
     })
     const { data: sub } = supabase!.auth.onAuthStateChange((_event, session) => {
-      setSessionId(session?.user.id ?? null)
+      applySession(session)
     })
     return () => sub.subscription.unsubscribe()
   }, [])
@@ -77,24 +94,42 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (isDemo || !sessionId) return
     let alive = true
     setLoading(true)
+    setDataError(null)
     api
       .load()
-      .then((d) => {
-        if (!alive) return
-        setDb(d)
+      .then(async (loaded) => {
+        let d = loaded
+        // Autocuración: si la cuenta no tiene perfil (p. ej. se registró antes de
+        // correr schema.sql), se lo creamos acá. La primera persona queda como admin.
+        if (!d.users.some((u) => u.id === sessionId)) {
+          const profile: User = {
+            id: sessionId,
+            name: sessionMeta?.name ?? 'Usuario',
+            email: sessionMeta?.email ?? '',
+            role: d.users.length === 0 ? 'admin' : 'member',
+            color: USER_COLORS[d.users.length % USER_COLORS.length],
+          }
+          await api.saveUser(profile)
+          d = { ...d, users: [...d.users, profile] }
+        }
+        if (alive) setDb(d)
       })
-      .catch(report)
+      .catch((e) => {
+        report(e)
+        if (alive) setDataError(e instanceof Error ? e.message : String(e))
+      })
       .finally(() => alive && setLoading(false))
     return () => {
       alive = false
     }
-  }, [sessionId])
+  }, [sessionId, sessionMeta])
 
   const currentUser = sessionId ? (db.users.find((u) => u.id === sessionId) ?? null) : null
 
   const value: AppCtx = {
     loading,
     demo: isDemo,
+    dataError,
     users: db.users,
     projects: db.projects,
     tasks: db.tasks,

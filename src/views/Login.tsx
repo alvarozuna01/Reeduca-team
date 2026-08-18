@@ -4,10 +4,19 @@ import { Avatar } from '../components/Avatar'
 import { Field, inputCls } from '../components/Modal'
 
 export default function Login() {
-  const { demo } = useApp()
+  const { demo, dataError } = useApp()
   return (
     <div className="grid min-h-full place-items-center bg-[#f6f7f9] p-6">
       <div className="w-full max-w-xl">
+        {dataError && (
+          <div className="mx-auto mb-5 max-w-sm rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+            <p className="text-sm font-extrabold text-red-600">No se pudieron cargar los datos</p>
+            <p className="mt-0.5 text-xs font-semibold break-words text-red-500">{dataError}</p>
+            <p className="mt-1 text-xs font-semibold text-red-400">
+              Pista: verificá haber corrido el archivo supabase/schema.sql en el SQL Editor de Supabase.
+            </p>
+          </div>
+        )}
         <div className="mb-6 text-center">
           <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-blue-600 text-xl font-black text-white shadow-lg shadow-blue-600/30">
             R
