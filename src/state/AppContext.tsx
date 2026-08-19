@@ -1,8 +1,9 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import type { DB, Minute, Note, NoteFolder, Project, Task, User } from '../types'
+import type { DB, Minute, Note, NoteFolder, Pin, Project, Task, User } from '../types'
 import { api, isDemo } from '../lib/api'
-import { demoSession } from '../lib/localApi'
+import { DB_KEY, demoSession } from '../lib/localApi'
+import { REALTIME_TABLES } from '../lib/supabaseApi'
 import { supabase } from '../lib/supabaseClient'
 import { USER_COLORS } from '../lib/utils'
 
@@ -16,6 +17,7 @@ interface AppCtx {
   notes: Note[]
   noteFolders: NoteFolder[]
   minutes: Minute[]
+  pins: Pin[]
   currentUser: User | null
   isAdmin: boolean
   loginDemo: (userId: string) => void
@@ -37,6 +39,8 @@ interface AppCtx {
   removeFolder: (id: string) => void
   upsertMinute: (m: Minute) => void
   removeMinute: (id: string) => void
+  upsertPin: (p: Pin) => void
+  removePin: (id: string) => void
 }
 
 const Ctx = createContext<AppCtx | null>(null)
@@ -52,7 +56,15 @@ function upsertIn<T extends { id: string }>(list: T[], item: T): T[] {
 const report = (e: unknown) => console.error('[ReEduca] Error guardando datos:', e)
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [db, setDb] = useState<DB>({ users: [], projects: [], tasks: [], notes: [], noteFolders: [], minutes: [] })
+  const [db, setDb] = useState<DB>({
+    users: [],
+    projects: [],
+    tasks: [],
+    notes: [],
+    noteFolders: [],
+    minutes: [],
+    pins: [],
+  })
   const [loading, setLoading] = useState(true)
   const [sessionId, setSessionId] = useState<string | null>(() => (isDemo ? demoSession.get() : null))
   const [sessionMeta, setSessionMeta] = useState<{ email: string; name: string } | null>(null)
@@ -65,7 +77,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setDb(d)
         setLoading(false)
       })
-      return
+      // "Tiempo real" del modo demo: si otra pestaña del mismo navegador
+      // cambia los datos, esta pestaña se entera y se actualiza sola.
+      const onStorage = (e: StorageEvent) => {
+        if (e.key === DB_KEY) api.load().then(setDb)
+      }
+      window.addEventListener('storage', onStorage)
+      return () => window.removeEventListener('storage', onStorage)
     }
     const applySession = (session: Session | null) => {
       const u = session?.user
@@ -124,6 +142,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [sessionId, sessionMeta])
 
+  // Tiempo real (Supabase Realtime): cualquier cambio que haga otra persona
+  // en la base llega acá y se aplica al estado local al instante, sin recargar.
+  useEffect(() => {
+    if (isDemo || !sessionId || !supabase) return
+    const sb = supabase
+    const channel = sb.channel('cambios-en-vivo')
+    for (const { table, key, map } of REALTIME_TABLES) {
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table },
+        (payload) => {
+          setDb((d) => {
+            if (payload.eventType === 'DELETE') {
+              const id = (payload.old as { id?: string }).id
+              if (!id) return d
+              return { ...d, [key]: (d[key] as { id: string }[]).filter((x) => x.id !== id) }
+            }
+            const item = map(payload.new)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            return { ...d, [key]: upsertIn(d[key] as any[], item) }
+          })
+        },
+      )
+    }
+    channel.subscribe()
+    return () => {
+      sb.removeChannel(channel)
+    }
+  }, [sessionId])
+
   const currentUser = sessionId ? (db.users.find((u) => u.id === sessionId) ?? null) : null
 
   const value: AppCtx = {
@@ -136,6 +184,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     notes: db.notes,
     noteFolders: db.noteFolders,
     minutes: db.minutes,
+    pins: db.pins,
     currentUser,
     isAdmin: currentUser?.role === 'admin',
 
@@ -269,6 +318,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     removeMinute(id) {
       setDb((d) => ({ ...d, minutes: d.minutes.filter((m) => m.id !== id) }))
       api.deleteMinute(id).catch(report)
+    },
+
+    upsertPin(p) {
+      setDb((d) => ({ ...d, pins: upsertIn(d.pins, p) }))
+      api.savePin(p).catch(report)
+    },
+
+    removePin(id) {
+      setDb((d) => ({ ...d, pins: d.pins.filter((p) => p.id !== id) }))
+      api.deletePin(id).catch(report)
     },
   }
 

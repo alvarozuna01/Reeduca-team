@@ -1,6 +1,6 @@
 import { Paperclip } from 'lucide-react'
 import type { Project, Task, User } from '../types'
-import { isOverdue } from '../lib/utils'
+import { isOverdue, textOn } from '../lib/utils'
 import { AvatarStack } from './Avatar'
 import { ImportancePill, UrgentPill } from './Stars'
 
@@ -36,9 +36,10 @@ export default function TaskCard({ task, project, assignees, onOpen, onToggleChe
     >
       <div className="rounded-t-lg px-2.5 py-2" style={{ background: color }}>
         <p
-          className={`text-right text-[11px] leading-tight font-extrabold tracking-wide text-white uppercase ${
+          className={`text-right text-[11px] leading-tight font-extrabold tracking-wide uppercase ${
             done ? 'line-through opacity-75' : ''
           }`}
+          style={{ color: textOn(color) }}
         >
           {task.title}
         </p>

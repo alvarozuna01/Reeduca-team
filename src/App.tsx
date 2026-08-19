@@ -30,6 +30,7 @@ function Shell() {
   const { loading, currentUser } = useApp()
   const [view, setView] = useState<View>('midia')
   const [editor, setEditor] = useState<EditorState | null>(null)
+  const [noteToOpen, setNoteToOpen] = useState<string | null>(null)
 
   if (loading) {
     return (
@@ -48,13 +49,21 @@ function Shell() {
     <div className="flex h-full flex-col">
       <TopBar view={view} setView={setView} onNew={() => setEditor({ defaults: { date: todayKey() } })} />
       <main className="min-h-0 flex-1">
-        {view === 'midia' && <MiDia onEdit={(t) => setEditor({ task: t })} />}
+        {view === 'midia' && (
+          <MiDia
+            onEdit={(t) => setEditor({ task: t })}
+            onOpenNote={(id) => {
+              setNoteToOpen(id)
+              setView('cuaderno')
+            }}
+          />
+        )}
         {view === 'agenda' && (
           <Agenda onEdit={(t) => setEditor({ task: t })} onNew={(defaults) => setEditor({ defaults })} />
         )}
         {view === 'kanban' && <Kanban onEdit={(t) => setEditor({ task: t })} />}
         {view === 'minutas' && <Minutas onEditTask={(t) => setEditor({ task: t })} />}
-        {view === 'cuaderno' && <Cuaderno />}
+        {view === 'cuaderno' && <Cuaderno openNoteId={noteToOpen} onNoteOpened={() => setNoteToOpen(null)} />}
         {view === 'proyectos' && <Proyectos />}
         {view === 'equipo' && <Equipo onEditTask={(t) => setEditor({ task: t })} />}
       </main>

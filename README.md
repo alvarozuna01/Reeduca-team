@@ -2,7 +2,9 @@
 
 Plataforma web de gestión de equipos, tareas, proyectos y RRHH. Incluye:
 
-- **Mi Día**: pantalla de inicio personal con recordatorios críticos (tareas de 4–5 ★) y la agenda de hoy con checkbox rápido.
+- **Tiempo real (multijugador)**: los cambios de cualquier miembro (tareas, Kanban, minutas, notas) aparecen al instante en las pantallas de todos, sin recargar — vía Supabase Realtime (en modo demo, sincroniza entre pestañas del mismo navegador).
+- **Mi Día**: pantalla de inicio personal con recordatorios críticos (tareas de 4–5 ★), la agenda de hoy con checkbox rápido y la sección **Fijados** (notas ancladas + recordatorios sueltos).
+- **Notas colaborativas**: compartí una nota con personas específicas; la ven y editan en vivo (con indicador de presencia), y cualquier nota se **exporta a PDF** con un clic.
 - **Agenda semanal** con drag & drop (mover tareas de día, reordenar prioridad) y edición rápida en panel lateral.
 - **Kanban avanzado** con filtros duales (proyecto + semana + persona) y semáforo de carga de las próximas semanas (🔴 >10 tareas · 🟡 3–10 · 🟢 <3).
 - **Urgencia e importancia** en cada tarea: toggle "Es urgente" (borde y badge rojos) y calificación de 1–5 estrellas; las de 4–5 ★ aparecen sí o sí en Mi Día del responsable y en el panel del Gerente.

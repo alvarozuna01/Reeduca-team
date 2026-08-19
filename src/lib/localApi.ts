@@ -1,18 +1,20 @@
-import type { DB, Minute, Note, NoteFolder, Project, Task, User } from '../types'
+import type { DB, Minute, Note, NoteFolder, Pin, Project, Task, User } from '../types'
 import { seedDB } from './seed'
 import type { Api } from './api'
 
-const DB_KEY = 'reeduca-db-v1'
+export const DB_KEY = 'reeduca-db-v1'
 const SESSION_KEY = 'reeduca-session-v1'
 
-/** Completa datos guardados por versiones anteriores de la app (Fase 1 → Fase 2). */
+/** Completa datos guardados por versiones anteriores de la app (Fase 1 → 2 → 3). */
 function normalize(db: DB): DB {
   db.tasks = (db.tasks ?? []).map((t) => ({ ...t, urgent: t.urgent ?? false, importance: t.importance ?? 0 }))
+  const hadNotes = !!db.notes
   if (!db.notes || !db.noteFolders || !db.minutes) {
     const s = seedDB()
     db.notes ??= s.notes
     db.noteFolders ??= s.noteFolders
     db.minutes ??= s.minutes
+    if (!hadNotes) db.pins ??= s.pins
     // Primera vez con la Fase 2: enriquecer las tareas de ejemplo de la Fase 1
     // con urgencia/importancia, y sumar las tareas de la semana próxima.
     for (const st of s.tasks) {
@@ -24,6 +26,8 @@ function normalize(db: DB): DB {
       if (!match && st.date > todayStr()) db.tasks.push(st)
     }
   }
+  db.notes = db.notes.map((n) => ({ ...n, sharedWith: n.sharedWith ?? [] }))
+  db.pins ??= []
   return db
 }
 
@@ -141,6 +145,18 @@ export const localApi: Api = {
   async deleteMinute(id: string) {
     const db = read()
     db.minutes = db.minutes.filter((m) => m.id !== id)
+    write(db)
+  },
+
+  async savePin(p: Pin) {
+    const db = read()
+    db.pins = upsert(db.pins, p)
+    write(db)
+  },
+
+  async deletePin(id: string) {
+    const db = read()
+    db.pins = db.pins.filter((p) => p.id !== id)
     write(db)
   },
 }

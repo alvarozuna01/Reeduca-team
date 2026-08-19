@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Flame, Plus, Trash2, X } from 'lucide-react'
 import type { Status, Task } from '../types'
-import { STATUS_LABEL, todayKey, uid } from '../lib/utils'
+import { STATUS_LABEL, textOn, todayKey, uid } from '../lib/utils'
 import { useApp } from '../state/AppContext'
 import { Avatar } from './Avatar'
 import { Field, inputCls } from './Modal'
@@ -98,12 +98,15 @@ export default function TaskEditor({ task, defaults, onClose }: Props) {
                   onClick={() => set('projectId', p.id)}
                   className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold transition ${
                     draft.projectId === p.id
-                      ? 'border-transparent text-white'
+                      ? 'border-transparent'
                       : 'border-slate-200 text-slate-500 hover:border-slate-300'
                   }`}
-                  style={draft.projectId === p.id ? { background: p.color } : undefined}
+                  style={draft.projectId === p.id ? { background: p.color, color: textOn(p.color) } : undefined}
                 >
-                  <span className="size-2 rounded-full" style={{ background: draft.projectId === p.id ? '#fff' : p.color }} />
+                  <span
+                    className="size-2 rounded-full"
+                    style={{ background: draft.projectId === p.id ? textOn(p.color) : p.color }}
+                  />
                   {p.name}
                 </button>
               ))}

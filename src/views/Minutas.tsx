@@ -3,7 +3,7 @@ import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { CheckCircle2, ClipboardList, Plus, Trash2, Wand2 } from 'lucide-react'
 import type { Minute, MinuteAction, Task } from '../types'
-import { todayKey, uid } from '../lib/utils'
+import { textOn, todayKey, uid } from '../lib/utils'
 import { useApp } from '../state/AppContext'
 import { Avatar, AvatarStack } from '../components/Avatar'
 import Modal, { Field, inputCls } from '../components/Modal'
@@ -281,11 +281,14 @@ function ConvertModal({
                 type="button"
                 onClick={() => setProjectId(p.id)}
                 className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold transition ${
-                  projectId === p.id ? 'border-transparent text-white' : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                  projectId === p.id ? 'border-transparent' : 'border-slate-200 text-slate-500 hover:border-slate-300'
                 }`}
-                style={projectId === p.id ? { background: p.color } : undefined}
+                style={projectId === p.id ? { background: p.color, color: textOn(p.color) } : undefined}
               >
-                <span className="size-2 rounded-full" style={{ background: projectId === p.id ? '#fff' : p.color }} />
+                <span
+                  className="size-2 rounded-full"
+                  style={{ background: projectId === p.id ? textOn(p.color) : p.color }}
+                />
                 {p.name}
               </button>
             ))}

@@ -1,5 +1,5 @@
 import type { User } from '../types'
-import { initials } from '../lib/utils'
+import { initials, textOn } from '../lib/utils'
 
 export function Avatar({ user, size = 24 }: { user: User; size?: number }) {
   if (user.avatarUrl) {
@@ -16,8 +16,8 @@ export function Avatar({ user, size = 24 }: { user: User; size?: number }) {
   return (
     <span
       title={user.name}
-      className="inline-flex items-center justify-center rounded-full font-extrabold text-white ring-2 ring-white select-none"
-      style={{ width: size, height: size, background: user.color, fontSize: size * 0.48 }}
+      className="inline-flex items-center justify-center rounded-full font-extrabold ring-2 ring-white select-none"
+      style={{ width: size, height: size, background: user.color, fontSize: size * 0.48, color: textOn(user.color) }}
     >
       {initials(user.name)}
     </span>

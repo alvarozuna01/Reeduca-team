@@ -4,6 +4,7 @@ import { es } from 'date-fns/locale'
 import {
   Bold,
   ChevronRight,
+  FileDown,
   Folder,
   FolderPlus,
   Italic,
@@ -15,20 +16,44 @@ import {
   Pin,
   Plus,
   Search,
+  Share2,
   SquarePen,
+  Sunrise,
   Trash2,
   Underline,
+  Users as UsersIcon,
 } from 'lucide-react'
-import type { Note, NoteFolder } from '../types'
+import type { Note, NoteFolder, User } from '../types'
 import { noteDate, stripHtml, uid } from '../lib/utils'
+import { isDemo } from '../lib/api'
+import { supabase } from '../lib/supabaseClient'
 import { useApp } from '../state/AppContext'
+import { Avatar, AvatarStack } from '../components/Avatar'
 import Modal, { Field, inputCls } from '../components/Modal'
 
-export default function Cuaderno() {
-  const { notes, noteFolders, currentUser, upsertNote, removeNote, upsertFolder, removeFolder } = useApp()
+export default function Cuaderno({
+  openNoteId,
+  onNoteOpened,
+}: {
+  openNoteId?: string | null
+  onNoteOpened?: () => void
+}) {
+  const {
+    notes,
+    noteFolders,
+    users,
+    pins,
+    currentUser,
+    upsertNote,
+    removeNote,
+    upsertFolder,
+    removeFolder,
+    upsertPin,
+    removePin,
+  } = useApp()
   const me = currentUser!
 
-  const [selectedFolderId, setSelectedFolderId] = useState<string | 'all'>('all')
+  const [selectedFolderId, setSelectedFolderId] = useState<string>('all') // 'all' | 'shared' | id de carpeta
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState('')
@@ -37,34 +62,79 @@ export default function Cuaderno() {
   >(null)
 
   const myFolders = useMemo(
-    () => noteFolders.filter((f) => f.userId === me.id).sort((a, b) => a.position - b.position || a.name.localeCompare(b.name)),
+    () =>
+      noteFolders
+        .filter((f) => f.userId === me.id)
+        .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name)),
     [noteFolders, me.id],
   )
-  const myNotes = useMemo(() => notes.filter((n) => n.userId === me.id), [notes, me.id])
+  const ownNotes = useMemo(() => notes.filter((n) => n.userId === me.id), [notes, me.id])
+  const sharedNotes = useMemo(
+    () => notes.filter((n) => n.userId !== me.id && n.sharedWith.includes(me.id)),
+    [notes, me.id],
+  )
 
   const childrenOf = (id: string | null) => myFolders.filter((f) => f.parentId === id)
-  const notesIn = (folderId: string | 'all') =>
-    folderId === 'all' ? myNotes : myNotes.filter((n) => n.folderId === folderId)
+  const notesIn = (sel: string) =>
+    sel === 'all' ? ownNotes : sel === 'shared' ? sharedNotes : ownNotes.filter((n) => n.folderId === sel)
 
   const q = search.trim().toLowerCase()
   const listNotes = notesIn(selectedFolderId)
     .filter((n) => !q || n.title.toLowerCase().includes(q) || stripHtml(n.content).toLowerCase().includes(q))
     .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt.localeCompare(a.updatedAt))
 
-  const selectedNote = myNotes.find((n) => n.id === selectedNoteId) ?? null
-  const selectedFolder = selectedFolderId === 'all' ? null : myFolders.find((f) => f.id === selectedFolderId)
+  const selectedNote =
+    [...ownNotes, ...sharedNotes].find((n) => n.id === selectedNoteId) ?? null
+  const selectedFolder =
+    selectedFolderId !== 'all' && selectedFolderId !== 'shared'
+      ? myFolders.find((f) => f.id === selectedFolderId)
+      : null
+
+  // Apertura directa desde "Mi Día" (Fijados)
+  useEffect(() => {
+    if (!openNoteId) return
+    const n = notes.find((x) => x.id === openNoteId)
+    if (n) {
+      setSelectedNoteId(n.id)
+      setSelectedFolderId(n.userId === me.id ? (n.folderId ?? 'all') : 'shared')
+    }
+    onNoteOpened?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openNoteId])
+
+  // Presencia: quiénes más están mirando esta nota (solo con Supabase)
+  const [viewerIds, setViewerIds] = useState<string[]>([])
+  useEffect(() => {
+    setViewerIds([])
+    if (isDemo || !supabase || !selectedNoteId) return
+    const sb = supabase
+    const ch = sb.channel(`nota-${selectedNoteId}`, { config: { presence: { key: me.id } } })
+    ch.on('presence', { event: 'sync' }, () => {
+      setViewerIds(Object.keys(ch.presenceState()).filter((id) => id !== me.id))
+    })
+    ch.subscribe((status) => {
+      if (status === 'SUBSCRIBED') ch.track({ online: true })
+    })
+    return () => {
+      sb.removeChannel(ch)
+    }
+  }, [selectedNoteId, me.id])
 
   const createNote = () => {
+    const folderId =
+      selectedFolderId === 'all' || selectedFolderId === 'shared' ? null : selectedFolderId
     const n: Note = {
       id: uid(),
       userId: me.id,
-      folderId: selectedFolderId === 'all' ? null : selectedFolderId,
+      folderId,
       title: '',
       content: '',
       pinned: false,
       updatedAt: new Date().toISOString(),
+      sharedWith: [],
     }
     upsertNote(n)
+    if (selectedFolderId === 'shared') setSelectedFolderId('all')
     setSelectedNoteId(n.id)
   }
 
@@ -90,11 +160,24 @@ export default function Cuaderno() {
       return next
     })
 
+  const dayPin = selectedNote ? pins.find((p) => p.userId === me.id && p.noteId === selectedNote.id) : undefined
+  const toggleDayPin = () => {
+    if (!selectedNote) return
+    if (dayPin) removePin(dayPin.id)
+    else
+      upsertPin({
+        id: uid(),
+        userId: me.id,
+        noteId: selectedNote.id,
+        position: pins.filter((p) => p.userId === me.id).length,
+      })
+  }
+
   const renderFolder = (f: NoteFolder, depth: number) => {
     const kids = childrenOf(f.id)
     const open = !collapsed.has(f.id)
     const active = selectedFolderId === f.id
-    const count = myNotes.filter((n) => n.folderId === f.id).length
+    const count = ownNotes.filter((n) => n.folderId === f.id).length
     return (
       <div key={f.id}>
         <div
@@ -159,6 +242,7 @@ export default function Cuaderno() {
 
   const noteItem = (n: Note) => {
     const active = selectedNoteId === n.id
+    const owner = n.userId !== me.id ? users.find((u) => u.id === n.userId) : undefined
     return (
       <button
         key={n.id}
@@ -168,29 +252,34 @@ export default function Cuaderno() {
         }`}
       >
         <span className="flex items-center gap-1.5">
+          {owner && <Avatar user={owner} size={16} />}
           <span className={`flex-1 truncate text-sm font-extrabold ${active ? 'text-white' : 'text-slate-700'}`}>
             {n.title || 'Nota nueva'}
           </span>
-          <span
-            role="button"
-            title={n.pinned ? 'Desfijar' : 'Fijar arriba'}
-            onClick={(e) => {
-              e.stopPropagation()
-              upsertNote({ ...n, pinned: !n.pinned })
-            }}
-            className={`rounded p-0.5 ${
-              n.pinned
-                ? active
-                  ? 'text-amber-300'
-                  : 'text-amber-500'
-                : `opacity-0 group-hover/n:opacity-100 ${active ? 'text-blue-200 hover:text-white' : 'text-slate-300 hover:text-amber-500'}`
-            }`}
-          >
-            <Pin size={13} className={n.pinned ? 'fill-current' : ''} />
-          </span>
+          {n.userId === me.id && (
+            <span
+              role="button"
+              title={n.pinned ? 'Desfijar' : 'Fijar arriba'}
+              onClick={(e) => {
+                e.stopPropagation()
+                upsertNote({ ...n, pinned: !n.pinned })
+              }}
+              className={`rounded p-0.5 ${
+                n.pinned
+                  ? active
+                    ? 'text-amber-300'
+                    : 'text-amber-500'
+                  : `opacity-0 group-hover/n:opacity-100 ${active ? 'text-blue-200 hover:text-white' : 'text-slate-300 hover:text-amber-500'}`
+              }`}
+            >
+              <Pin size={13} className={n.pinned ? 'fill-current' : ''} />
+            </span>
+          )}
         </span>
         <span className={`mt-0.5 block truncate text-[11px] font-semibold ${active ? 'text-blue-100' : 'text-slate-400'}`}>
-          {format(new Date(n.updatedAt), 'd MMM', { locale: es })} · {stripHtml(n.content).slice(0, 70) || 'Sin contenido'}
+          {owner ? `De ${owner.name} · ` : ''}
+          {format(new Date(n.updatedAt), 'd MMM', { locale: es })} ·{' '}
+          {stripHtml(n.content).slice(0, 70) || 'Sin contenido'}
         </span>
       </button>
     )
@@ -219,12 +308,23 @@ export default function Cuaderno() {
           >
             <Layers size={14} className={selectedFolderId === 'all' ? 'text-blue-500' : 'text-slate-400'} />
             <span className="flex-1 text-[13px] font-bold">Todas las notas</span>
-            <span className="text-[10px] font-bold text-slate-300">{myNotes.length}</span>
+            <span className="text-[10px] font-bold text-slate-300">{ownNotes.length}</span>
           </div>
+          <div
+            onClick={() => setSelectedFolderId('shared')}
+            className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 transition ${
+              selectedFolderId === 'shared' ? 'bg-blue-100/70 text-blue-700' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <UsersIcon size={14} className={selectedFolderId === 'shared' ? 'text-blue-500' : 'text-slate-400'} />
+            <span className="flex-1 text-[13px] font-bold">Compartidas conmigo</span>
+            <span className="text-[10px] font-bold text-slate-300">{sharedNotes.length}</span>
+          </div>
+          <div className="mx-2 my-1.5 border-t border-slate-200/70" />
           {childrenOf(null).map((f) => renderFolder(f, 0))}
         </div>
         <p className="border-t border-slate-200 px-3 py-2 text-[10px] font-semibold text-slate-300">
-          🔒 Tus notas son privadas: nadie más del equipo puede verlas.
+          🔒 Tus notas son privadas, salvo las que decidas compartir.
         </p>
       </aside>
 
@@ -232,13 +332,9 @@ export default function Cuaderno() {
       <div className="flex w-72 shrink-0 flex-col border-r border-slate-200 bg-white">
         <div className="flex items-center justify-between px-3 pt-3 pb-1.5">
           <span className="truncate font-extrabold text-slate-700">
-            {selectedFolder ? selectedFolder.name : 'Todas las notas'}
+            {selectedFolderId === 'shared' ? 'Compartidas conmigo' : (selectedFolder?.name ?? 'Todas las notas')}
           </span>
-          <button
-            title="Nueva nota"
-            onClick={createNote}
-            className="rounded-lg p-1.5 text-blue-600 hover:bg-blue-50"
-          >
+          <button title="Nueva nota" onClick={createNote} className="rounded-lg p-1.5 text-blue-600 hover:bg-blue-50">
             <SquarePen size={17} />
           </button>
         </div>
@@ -266,7 +362,11 @@ export default function Cuaderno() {
           {otherNotes.map(noteItem)}
           {listNotes.length === 0 && (
             <p className="px-3 py-8 text-center text-sm font-semibold text-slate-300">
-              {q ? 'No se encontraron notas.' : 'Esta carpeta está vacía.'}
+              {q
+                ? 'No se encontraron notas.'
+                : selectedFolderId === 'shared'
+                  ? 'Todavía nadie compartió notas con vos.'
+                  : 'Esta carpeta está vacía.'}
             </p>
           )}
         </div>
@@ -278,6 +378,12 @@ export default function Cuaderno() {
           <NoteEditor
             key={selectedNote.id}
             note={selectedNote}
+            isOwner={selectedNote.userId === me.id}
+            owner={users.find((u) => u.id === selectedNote.userId)}
+            teammates={users.filter((u) => u.id !== selectedNote.userId)}
+            viewers={users.filter((u) => viewerIds.includes(u.id))}
+            dayPinned={!!dayPin}
+            onToggleDayPin={toggleDayPin}
             onSave={(patch) => upsertNote({ ...selectedNote, ...patch, updatedAt: new Date().toISOString() })}
             onDelete={() => deleteNote(selectedNote)}
           />
@@ -312,11 +418,12 @@ export default function Cuaderno() {
                 parentId: folderModal.parentId,
                 position: childrenOf(folderModal.parentId).length,
               })
-              if (folderModal.parentId) setCollapsed((s) => {
-                const next = new Set(s)
-                next.delete(folderModal.parentId!)
-                return next
-              })
+              if (folderModal.parentId)
+                setCollapsed((s) => {
+                  const next = new Set(s)
+                  next.delete(folderModal.parentId!)
+                  return next
+                })
             }
             setFolderModal(null)
           }}
@@ -328,17 +435,34 @@ export default function Cuaderno() {
 
 /* ---- Editor de texto enriquecido (minimalista, estilo Notas) ---- */
 
+const escapeHtml = (s: string) =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
 function NoteEditor({
   note,
+  isOwner,
+  owner,
+  teammates,
+  viewers,
+  dayPinned,
+  onToggleDayPin,
   onSave,
   onDelete,
 }: {
   note: Note
+  isOwner: boolean
+  owner?: User
+  teammates: User[]
+  viewers: User[]
+  dayPinned: boolean
+  onToggleDayPin: () => void
   onSave: (patch: Partial<Note>) => void
   onDelete: () => void
 }) {
   const bodyRef = useRef<HTMLDivElement>(null)
   const timer = useRef<number | undefined>(undefined)
+  const [shareOpen, setShareOpen] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     if (bodyRef.current) bodyRef.current.innerHTML = note.content
@@ -346,6 +470,14 @@ function NoteEditor({
     // Solo al montar: el contenido vive en el DOM mientras se edita.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Edición en vivo: si otra persona guardó cambios y yo NO estoy escribiendo
+  // en este momento, el contenido se actualiza solo.
+  useEffect(() => {
+    const el = bodyRef.current
+    if (!el || document.activeElement === el) return
+    if (el.innerHTML !== note.content) el.innerHTML = note.content
+  }, [note.content])
 
   const saveContent = () => {
     window.clearTimeout(timer.current)
@@ -356,6 +488,54 @@ function NoteEditor({
     document.execCommand(cmd)
     bodyRef.current?.focus()
     saveContent()
+  }
+
+  const exportPdf = async () => {
+    setExporting(true)
+    try {
+      const { default: html2pdf } = await import('html2pdf.js')
+      const fecha = noteDate(note.updatedAt)
+      const holder = document.createElement('div')
+      holder.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;background:#ffffff'
+      holder.innerHTML = `
+        <div id="pdf-nota" style="font-family:'Nunito',-apple-system,'Segoe UI',sans-serif;color:#1e293b;padding:48px;background:#ffffff">
+          <style>
+            #pdf-nota ul { list-style: disc; padding-left: 22px; margin: 8px 0; }
+            #pdf-nota ol { list-style: decimal; padding-left: 22px; margin: 8px 0; }
+            #pdf-nota li { margin: 3px 0; }
+            #pdf-nota p { margin: 6px 0; }
+          </style>
+          <div style="font-size:11px;font-weight:800;color:#94a3b8;letter-spacing:.12em;text-transform:uppercase">ReEduca · Cuaderno</div>
+          <h1 style="font-size:26px;font-weight:900;margin:8px 0 2px">${escapeHtml(note.title || 'Nota')}</h1>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:16px">${owner ? `Por ${escapeHtml(owner.name)} · ` : ''}${escapeHtml(fecha)}</div>
+          <hr style="border:none;border-top:1px solid #e2e8f0;margin-bottom:20px" />
+          <div style="font-size:14px;line-height:1.75">${note.content}</div>
+        </div>`
+      document.body.appendChild(holder)
+      try {
+        await html2pdf()
+          .set({
+            margin: [10, 10],
+            filename: `${(note.title || 'nota')
+              .normalize('NFD')
+              .replace(/[̀-ͯ]/g, '')
+              .replace(/[^\w -]/g, '')
+              .trim()
+              .replace(/\s+/g, '-')
+              .toLowerCase()}.pdf`,
+            image: { type: 'jpeg', quality: 0.96 },
+            html2canvas: { scale: 2, useCORS: true },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            pagebreak: { mode: ['css', 'legacy'] },
+          })
+          .from(holder.firstElementChild as HTMLElement)
+          .save()
+      } finally {
+        holder.remove()
+      }
+    } finally {
+      setExporting(false)
+    }
   }
 
   const toolBtn = 'rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700'
@@ -373,23 +553,76 @@ function NoteEditor({
           <Underline size={15} />
         </button>
         <span className="mx-1 h-4 w-px bg-slate-200" />
-        <button title="Lista con viñetas" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('insertUnorderedList')} className={toolBtn}>
+        <button
+          title="Lista con viñetas"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => exec('insertUnorderedList')}
+          className={toolBtn}
+        >
           <List size={15} />
         </button>
-        <button title="Lista numerada" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('insertOrderedList')} className={toolBtn}>
+        <button
+          title="Lista numerada"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => exec('insertOrderedList')}
+          className={toolBtn}
+        >
           <ListOrdered size={15} />
         </button>
+
         <span className="ml-auto flex items-center gap-1">
+          {viewers.length > 0 && (
+            <span className="mr-1 flex items-center gap-1.5 rounded-full bg-emerald-50 py-1 pr-2.5 pl-1.5" title="Viendo esta nota ahora">
+              <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
+              <AvatarStack users={viewers} size={18} />
+              <span className="text-[10px] font-extrabold text-emerald-600">en vivo</span>
+            </span>
+          )}
+          {isOwner && (
+            <button
+              title="Compartir con el equipo"
+              onClick={() => setShareOpen(true)}
+              className={`flex items-center gap-1 rounded-md p-1.5 text-xs font-extrabold transition hover:bg-slate-100 ${
+                note.sharedWith.length ? 'text-blue-600' : 'text-slate-400 hover:text-blue-600'
+              }`}
+            >
+              <Share2 size={15} />
+              {note.sharedWith.length > 0 && note.sharedWith.length}
+            </button>
+          )}
           <button
-            title={note.pinned ? 'Desfijar' : 'Fijar arriba'}
-            onClick={() => onSave({ pinned: !note.pinned })}
-            className={`rounded-md p-1.5 transition hover:bg-slate-100 ${note.pinned ? 'text-amber-500' : 'text-slate-400 hover:text-amber-500'}`}
+            title={dayPinned ? 'Quitar de Mi Día' : 'Fijar en Mi Día'}
+            onClick={onToggleDayPin}
+            className={`rounded-md p-1.5 transition hover:bg-slate-100 ${dayPinned ? 'text-blue-600' : 'text-slate-400 hover:text-blue-600'}`}
           >
-            <Pin size={15} className={note.pinned ? 'fill-current' : ''} />
+            <Sunrise size={15} className={dayPinned ? 'fill-blue-100' : ''} />
           </button>
-          <button title="Eliminar nota" onClick={onDelete} className="rounded-md p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-500">
-            <Trash2 size={15} />
+          {isOwner && (
+            <button
+              title={note.pinned ? 'Desfijar de la lista' : 'Fijar arriba en la lista'}
+              onClick={() => onSave({ pinned: !note.pinned })}
+              className={`rounded-md p-1.5 transition hover:bg-slate-100 ${note.pinned ? 'text-amber-500' : 'text-slate-400 hover:text-amber-500'}`}
+            >
+              <Pin size={15} className={note.pinned ? 'fill-current' : ''} />
+            </button>
+          )}
+          <button
+            title="Exportar a PDF"
+            onClick={exportPdf}
+            disabled={exporting}
+            className={`rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-blue-600 ${exporting ? 'animate-pulse' : ''}`}
+          >
+            <FileDown size={15} />
           </button>
+          {isOwner && (
+            <button
+              title="Eliminar nota"
+              onClick={onDelete}
+              className="rounded-md p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-500"
+            >
+              <Trash2 size={15} />
+            </button>
+          )}
         </span>
       </div>
       <div className="px-6 pt-4">
@@ -399,15 +632,63 @@ function NoteEditor({
           placeholder="Título de la nota"
           className="w-full text-2xl font-black text-slate-800 outline-none placeholder:text-slate-200"
         />
-        <p className="mt-1 text-[11px] font-semibold text-slate-300">Editado el {noteDate(note.updatedAt)}</p>
+        <p className="mt-1 text-[11px] font-semibold text-slate-300">
+          {!isOwner && owner ? `Nota de ${owner.name} · ` : ''}
+          {note.sharedWith.length > 0 && isOwner
+            ? `Compartida con ${note.sharedWith.length} persona${note.sharedWith.length > 1 ? 's' : ''} · `
+            : ''}
+          Editado el {noteDate(note.updatedAt)}
+        </p>
       </div>
       <div
         ref={bodyRef}
         contentEditable
         onInput={saveContent}
-        data-placeholder="Escribí acá…"
         className="mt-2 flex-1 overflow-y-auto px-6 pb-8 text-[15px] leading-relaxed text-slate-700 outline-none [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5"
       />
+
+      {shareOpen && (
+        <Modal title="Compartir nota" onClose={() => setShareOpen(false)}>
+          <div className="space-y-4">
+            <p className="text-sm font-semibold text-slate-500">
+              Elegí con quiénes compartir <span className="font-extrabold text-slate-700">“{note.title || 'esta nota'}”</span>.
+              Van a poder verla y editarla en vivo; borrarla o compartirla seguís pudiendo solo vos.
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {teammates.map((u) => {
+                const active = note.sharedWith.includes(u.id)
+                return (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() =>
+                      onSave({
+                        sharedWith: active
+                          ? note.sharedWith.filter((id) => id !== u.id)
+                          : [...note.sharedWith, u.id],
+                      })
+                    }
+                    className={`flex items-center gap-1.5 rounded-full border py-1 pr-2.5 pl-1 text-xs font-bold transition ${
+                      active ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                    }`}
+                  >
+                    <Avatar user={u} size={20} />
+                    {u.name}
+                  </button>
+                )
+              })}
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShareOpen(false)}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-extrabold text-white hover:bg-blue-700"
+              >
+                Listo
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </>
   )
 }

@@ -48,7 +48,7 @@ create table public.note_folders (
   position integer not null default 0
 );
 
--- Notas (privadas por usuario)
+-- Notas (privadas por usuario, compartibles con usuarios específicos)
 create table public.notes (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null,
@@ -56,7 +56,17 @@ create table public.notes (
   title text not null default '',
   content text not null default '',
   pinned boolean not null default false,
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  shared_with uuid[] not null default '{}'
+);
+
+-- Fijados de "Mi Día": una nota anclada o un recordatorio suelto
+create table public.pins (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null,
+  note_id uuid references public.notes (id) on delete cascade,
+  text text,
+  position integer not null default 0
 );
 
 -- Minutas de reuniones (compartidas por el equipo)
@@ -100,6 +110,7 @@ alter table public.tasks enable row level security;
 alter table public.note_folders enable row level security;
 alter table public.notes enable row level security;
 alter table public.minutes enable row level security;
+alter table public.pins enable row level security;
 
 create policy "profiles_authenticated" on public.profiles
   for all to authenticated using (true) with check (true);
@@ -113,9 +124,36 @@ create policy "tasks_authenticated" on public.tasks
 create policy "minutes_authenticated" on public.minutes
   for all to authenticated using (true) with check (true);
 
--- Las notas y carpetas son PRIVADAS: cada usuario solo ve las suyas.
+-- Las carpetas y fijados son PRIVADOS: cada usuario solo ve los suyos.
 create policy "note_folders_own" on public.note_folders
   for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
 
-create policy "notes_own" on public.notes
+create policy "pins_own" on public.pins
   for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- Notas: el dueño puede todo; con quien se comparte puede ver y editar.
+create policy "notes_select_own_or_shared" on public.notes
+  for select to authenticated
+  using (user_id = auth.uid() or auth.uid() = any (shared_with));
+
+create policy "notes_insert_own" on public.notes
+  for insert to authenticated
+  with check (user_id = auth.uid());
+
+create policy "notes_update_own_or_shared" on public.notes
+  for update to authenticated
+  using (user_id = auth.uid() or auth.uid() = any (shared_with))
+  with check (user_id = auth.uid() or auth.uid() = any (shared_with));
+
+create policy "notes_delete_own" on public.notes
+  for delete to authenticated
+  using (user_id = auth.uid());
+
+-- Tiempo real: publicar los cambios para que la app los reciba al instante.
+do $$ begin alter publication supabase_realtime add table public.profiles; exception when duplicate_object then null; end $$;
+do $$ begin alter publication supabase_realtime add table public.projects; exception when duplicate_object then null; end $$;
+do $$ begin alter publication supabase_realtime add table public.tasks; exception when duplicate_object then null; end $$;
+do $$ begin alter publication supabase_realtime add table public.notes; exception when duplicate_object then null; end $$;
+do $$ begin alter publication supabase_realtime add table public.note_folders; exception when duplicate_object then null; end $$;
+do $$ begin alter publication supabase_realtime add table public.minutes; exception when duplicate_object then null; end $$;
+do $$ begin alter publication supabase_realtime add table public.pins; exception when duplicate_object then null; end $$;

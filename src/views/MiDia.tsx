@@ -1,15 +1,34 @@
-import { useMemo } from 'react'
-import { CheckCircle2, Star, Sun } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { CheckCircle2, NotebookPen, Pin, Star, Sun, X } from 'lucide-react'
 import type { Task } from '../types'
-import { longDate, todayKey } from '../lib/utils'
+import { longDate, todayKey, uid } from '../lib/utils'
 import { useApp } from '../state/AppContext'
 import { AvatarStack } from '../components/Avatar'
 import { ImportancePill, Stars, UrgentPill } from '../components/Stars'
 
-export default function MiDia({ onEdit }: { onEdit: (t: Task) => void }) {
-  const { tasks, projects, users, currentUser, upsertTask } = useApp()
+export default function MiDia({
+  onEdit,
+  onOpenNote,
+}: {
+  onEdit: (t: Task) => void
+  onOpenNote: (noteId: string) => void
+}) {
+  const { tasks, projects, users, notes, noteFolders, pins, currentUser, upsertTask, upsertPin, removePin } = useApp()
   const me = currentUser!
   const projectById = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects])
+  const [reminder, setReminder] = useState('')
+
+  const myPins = useMemo(
+    () => pins.filter((p) => p.userId === me.id).sort((a, b) => a.position - b.position),
+    [pins, me.id],
+  )
+
+  const addReminder = () => {
+    const text = reminder.trim()
+    if (!text) return
+    upsertPin({ id: uid(), userId: me.id, text, position: myPins.length })
+    setReminder('')
+  }
 
   const mine = useMemo(() => tasks.filter((t) => t.assigneeIds.includes(me.id)), [tasks, me.id])
 
@@ -145,6 +164,75 @@ export default function MiDia({ onEdit }: { onEdit: (t: Task) => void }) {
             </div>
           </section>
         </div>
+
+        {/* Fijados: notas ancladas y recordatorios sueltos */}
+        <section className="mt-4 rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
+            <span className="grid size-7 place-items-center rounded-lg bg-blue-100">
+              <Pin size={15} className="fill-blue-600 text-blue-600" />
+            </span>
+            <div>
+              <h3 className="leading-tight font-extrabold text-slate-700">Fijados</h3>
+              <p className="text-[11px] font-semibold text-slate-400">
+                Notas y recordatorios anclados acá para que no se te escapen
+              </p>
+            </div>
+          </div>
+          <div className="divide-y divide-slate-50 p-1.5">
+            {myPins.map((p) => {
+              if (p.noteId) {
+                const note = notes.find((n) => n.id === p.noteId)
+                if (!note) return null
+                const folder = note.folderId ? noteFolders.find((f) => f.id === note.folderId) : undefined
+                return (
+                  <div key={p.id} className="group flex items-center gap-3 rounded-lg px-3 py-2 transition hover:bg-slate-50">
+                    <NotebookPen size={16} className="shrink-0 text-blue-500" />
+                    <button onClick={() => onOpenNote(note.id)} className="min-w-0 flex-1 text-left">
+                      <span className="block truncate text-sm font-extrabold text-slate-700">
+                        {note.title || 'Nota nueva'}
+                      </span>
+                      <span className="text-[11px] font-semibold text-slate-400">
+                        Nota del cuaderno{folder ? ` · ${folder.name}` : ''} — tocá para abrirla
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => removePin(p.id)}
+                      title="Quitar de fijados"
+                      className="rounded-lg p-1.5 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:bg-red-50 hover:text-red-500"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+                )
+              }
+              return (
+                <div key={p.id} className="group flex items-center gap-3 rounded-lg px-3 py-2 transition hover:bg-slate-50">
+                  <Pin size={15} className="shrink-0 text-amber-500" />
+                  <span className="min-w-0 flex-1 text-sm font-bold text-slate-600">{p.text}</span>
+                  <button
+                    onClick={() => removePin(p.id)}
+                    title="Quitar de fijados"
+                    className="rounded-lg p-1.5 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:bg-red-50 hover:text-red-500"
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+              )
+            })}
+            <div className="flex items-center gap-3 rounded-lg px-3 py-2">
+              <Pin size={15} className="shrink-0 text-slate-300" />
+              <input
+                value={reminder}
+                onChange={(e) => setReminder(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') addReminder()
+                }}
+                placeholder="Escribí un recordatorio y apretá Enter para fijarlo…"
+                className="w-full bg-transparent text-sm font-semibold text-slate-600 outline-none placeholder:text-slate-300"
+              />
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   )

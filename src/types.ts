@@ -65,6 +65,16 @@ export interface Note {
   content: string // HTML del editor de texto enriquecido
   pinned: boolean
   updatedAt: string // ISO
+  sharedWith: string[] // ids de usuarios con acceso (ven y editan)
+}
+
+/** Elemento fijado en "Mi Día": una nota anclada o un recordatorio suelto. */
+export interface Pin {
+  id: string
+  userId: string
+  noteId?: string
+  text?: string
+  position: number
 }
 
 /* ---- Minutas de reuniones ---- */
@@ -91,4 +101,5 @@ export interface DB {
   notes: Note[]
   noteFolders: NoteFolder[]
   minutes: Minute[]
+  pins: Pin[]
 }

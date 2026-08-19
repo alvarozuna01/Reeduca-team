@@ -1,4 +1,4 @@
-import type { Minute, Note, NoteFolder, Project, Task, User } from '../types'
+import type { DB, Minute, Note, NoteFolder, Pin, Project, Task, User } from '../types'
 import type { Api } from './api'
 import { supabase } from './supabaseClient'
 
@@ -50,6 +50,7 @@ const rowToNote = (r: any): Note => ({
   content: r.content ?? '',
   pinned: r.pinned ?? false,
   updatedAt: r.updated_at ?? new Date().toISOString(),
+  sharedWith: r.shared_with ?? [],
 })
 
 const noteToRow = (n: Note) => ({
@@ -60,6 +61,24 @@ const noteToRow = (n: Note) => ({
   content: n.content,
   pinned: n.pinned,
   updated_at: n.updatedAt,
+  shared_with: n.sharedWith,
+})
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const rowToPin = (r: any): Pin => ({
+  id: r.id,
+  userId: r.user_id,
+  noteId: r.note_id ?? undefined,
+  text: r.text ?? undefined,
+  position: r.position ?? 0,
+})
+
+const pinToRow = (p: Pin) => ({
+  id: p.id,
+  user_id: p.userId,
+  note_id: p.noteId ?? null,
+  text: p.text ?? null,
+  position: p.position,
 })
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -136,6 +155,21 @@ function check(error: { message: string } | null) {
   if (error) throw new Error(error.message)
 }
 
+/**
+ * Mapeadores fila→entidad por tabla, usados también por la suscripción
+ * de tiempo real (AppContext) para aplicar cambios entrantes.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const REALTIME_TABLES: { table: string; key: keyof DB; map: (r: any) => { id: string } }[] = [
+  { table: 'profiles', key: 'users', map: rowToUser },
+  { table: 'projects', key: 'projects', map: rowToProject },
+  { table: 'tasks', key: 'tasks', map: rowToTask },
+  { table: 'notes', key: 'notes', map: rowToNote },
+  { table: 'note_folders', key: 'noteFolders', map: rowToFolder },
+  { table: 'minutes', key: 'minutes', map: rowToMinute },
+  { table: 'pins', key: 'pins', map: rowToPin },
+]
+
 export const supabaseApi: Api = {
   mode: 'supabase',
 
@@ -155,6 +189,8 @@ export const supabaseApi: Api = {
     check(notes.error)
     check(folders.error)
     check(minutes.error)
+    // pins es de la Fase 3: si la tabla todavía no existe, la app sigue andando.
+    const pins = await sb.from('pins').select('*').then((r) => (r.error ? [] : (r.data ?? [])))
     return {
       users: (users.data ?? []).map(rowToUser),
       projects: (projects.data ?? []).map(rowToProject),
@@ -162,6 +198,7 @@ export const supabaseApi: Api = {
       notes: (notes.data ?? []).map(rowToNote),
       noteFolders: (folders.data ?? []).map(rowToFolder),
       minutes: (minutes.data ?? []).map(rowToMinute),
+      pins: pins.map(rowToPin),
     }
   },
 
@@ -196,7 +233,14 @@ export const supabaseApi: Api = {
   },
 
   async saveNote(n) {
-    check((await supabase!.from('notes').upsert(noteToRow(n))).error)
+    const { error } = await supabase!.from('notes').upsert(noteToRow(n))
+    if (error && error.message.includes('shared_with')) {
+      // Base sin la migración de Fase 3 todavía: guardar sin ese campo.
+      const { shared_with: _sw, ...rest } = noteToRow(n)
+      check((await supabase!.from('notes').upsert(rest)).error)
+      return
+    }
+    check(error)
   },
 
   async deleteNote(id) {
@@ -217,5 +261,13 @@ export const supabaseApi: Api = {
 
   async deleteMinute(id) {
     check((await supabase!.from('minutes').delete().eq('id', id)).error)
+  },
+
+  async savePin(p) {
+    check((await supabase!.from('pins').upsert(pinToRow(p))).error)
+  },
+
+  async deletePin(id) {
+    check((await supabase!.from('pins').delete().eq('id', id)).error)
   },
 }

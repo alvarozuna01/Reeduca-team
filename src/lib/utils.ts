@@ -30,27 +30,51 @@ export const STATUS_LABEL: Record<Status, string> = {
   done: 'Completado',
 }
 
-export const PROJECT_COLORS = [
-  '#F0A62B',
-  '#5AB6E8',
-  '#F26CA7',
-  '#34C48E',
-  '#8B7CF6',
-  '#F2745F',
-  '#26B8B0',
-  '#64748B',
+/**
+ * Paleta pastel moderna, compartida por proyectos y personas.
+ * Sobre estos fondos el texto va OSCURO (lo resuelve textOn) para
+ * mantener contraste accesible.
+ */
+export const COLOR_PALETTE = [
+  '#F9B8C6', // rosa
+  '#F7C8DE', // rosa claro
+  '#F2B8E8', // orquídea
+  '#DCC5F7', // lila
+  '#C3C8F7', // lavanda
+  '#B8CFF7', // periwinkle
+  '#A8D8F0', // celeste
+  '#A5E1E8', // aguamarina
+  '#A8E6D7', // menta
+  '#B8E6B8', // verde suave
+  '#CFE8A5', // pistacho
+  '#E8E6A0', // lima pastel
+  '#F7E39C', // manteca
+  '#F7D49C', // durazno claro
+  '#F7C09C', // durazno
+  '#F2AFA0', // coral
+  '#E8B8A8', // terracota suave
+  '#D9C3A8', // arena
+  '#C9CDD6', // gris azulado
+  '#B8C4B8', // salvia
+  '#F0A62B', // ámbar (clásico ReEduca)
+  '#5AB6E8', // celeste (clásico ReEduca)
+  '#F26CA7', // rosa fuerte (clásico ReEduca)
+  '#34C48E', // verde (clásico ReEduca)
 ]
 
-export const USER_COLORS = [
-  '#8B5CF6',
-  '#EC4899',
-  '#14B8A6',
-  '#F97316',
-  '#64748B',
-  '#3B82F6',
-  '#EF4444',
-  '#22C55E',
-]
+export const PROJECT_COLORS = COLOR_PALETTE
+export const USER_COLORS = COLOR_PALETTE
+
+/** Color de texto accesible (oscuro o blanco) según la luminosidad del fondo. */
+export function textOn(bg: string): string {
+  const hex = bg.replace('#', '')
+  if (hex.length < 6) return '#1e293b'
+  const r = parseInt(hex.slice(0, 2), 16)
+  const g = parseInt(hex.slice(2, 4), 16)
+  const b = parseInt(hex.slice(4, 6), 16)
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  return lum > 0.6 ? '#334155' : '#ffffff'
+}
 
 /** Tareas de un día, ordenadas por posición */
 export function tasksOfDay(tasks: Task[], dateKey: string): Task[] {

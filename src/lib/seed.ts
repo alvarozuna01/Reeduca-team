@@ -1,5 +1,5 @@
 import { addDays } from 'date-fns'
-import type { DB, Minute, Note, NoteFolder, Task } from '../types'
+import type { DB, Minute, Note, NoteFolder, Pin, Task } from '../types'
 import { toKey, uid, weekDays } from './utils'
 
 /**
@@ -102,21 +102,36 @@ export function seedDB(): DB {
   ]
 
   const now = new Date().toISOString()
+  const noteMec: Note = {
+    id: uid(), userId: 'u-alvaro', folderId: 'f-mec', title: 'Pendientes con el MEC', pinned: true, updatedAt: now,
+    sharedWith: [],
+    content:
+      '<p>Cosas que no se pueden caer esta semana:</p><ul><li>Insumo para la Matriz de Certificación (Edgar)</li><li>Confirmar sede del evento Jóvenes Conectados</li><li>Nota formal para los IFD</li></ul>',
+  }
   const notes: Note[] = [
-    {
-      id: uid(), userId: 'u-alvaro', folderId: 'f-mec', title: 'Pendientes con el MEC', pinned: true, updatedAt: now,
-      content:
-        '<p>Cosas que no se pueden caer esta semana:</p><ul><li>Insumo para la Matriz de Certificación (Edgar)</li><li>Confirmar sede del evento Jóvenes Conectados</li><li>Nota formal para los IFD</li></ul>',
-    },
+    noteMec,
     {
       id: uid(), userId: 'u-alvaro', folderId: 'f-ideas', title: 'Ideas para el intercolegial', pinned: false, updatedAt: now,
+      sharedWith: ['u-malena', 'u-lucia'],
       content:
         '<p>Lluvia de ideas para Cristo Rey:</p><ul><li>Puntaje extra por barras</li><li>Stand de ReEduca con inscripciones</li><li>Pedir cancha desde el jueves</li></ul>',
     },
     {
       id: uid(), userId: 'u-alvaro', folderId: null, title: 'Borrador: bienvenida 4to módulo', pinned: false, updatedAt: now,
+      sharedWith: [],
       content: '<p>Hola a todos, ¡bienvenidos al Módulo 4! En esta etapa vamos a trabajar…</p>',
     },
+    {
+      id: uid(), userId: 'u-lucia', folderId: null, title: 'Guión capacitación M3', pinned: false, updatedAt: now,
+      sharedWith: ['u-alvaro', 'u-pato'],
+      content:
+        '<p>Estructura tentativa de la jornada:</p><ol><li>Bienvenida y repaso (20 min)</li><li>Actividad práctica con los kits (60 min)</li><li>Puesta en común (30 min)</li></ol><p><i>Álvaro y Pato: agreguen lo que falte acá mismo.</i></p>',
+    },
+  ]
+
+  const pins: Pin[] = [
+    { id: uid(), userId: 'u-alvaro', noteId: noteMec.id, position: 0 },
+    { id: uid(), userId: 'u-alvaro', text: 'Pasar el número nuevo de Edgar al grupo del equipo', position: 1 },
   ]
 
   const minutes: Minute[] = [
@@ -135,5 +150,5 @@ export function seedDB(): DB {
     },
   ]
 
-  return { users, projects, tasks, notes, noteFolders, minutes }
+  return { users, projects, tasks, notes, noteFolders, minutes, pins }
 }
