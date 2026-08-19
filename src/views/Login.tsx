@@ -6,8 +6,32 @@ import { Field, inputCls } from '../components/Modal'
 export default function Login() {
   const { demo, dataError } = useApp()
   return (
-    <div className="grid min-h-full place-items-center bg-[#f6f7f9] p-6">
-      <div className="w-full max-w-xl">
+    <div className="relative grid min-h-full place-items-center overflow-hidden bg-[linear-gradient(135deg,#4a7bff_0%,#0e4afb_55%,#0a2fa4_100%)] p-6">
+      {/* Key visual: tramas geométricas del playbook */}
+      <svg
+        className="pointer-events-none absolute -top-24 -left-24 h-96 w-96 opacity-15"
+        viewBox="0 0 200 200"
+        fill="none"
+        stroke="#fff"
+        strokeWidth="4"
+      >
+        <circle cx="100" cy="100" r="30" />
+        <circle cx="100" cy="100" r="55" />
+        <circle cx="100" cy="100" r="80" />
+      </svg>
+      <svg
+        className="pointer-events-none absolute -right-28 -bottom-28 h-[26rem] w-[26rem] opacity-15"
+        viewBox="0 0 200 200"
+        fill="none"
+        stroke="#fff"
+        strokeWidth="4"
+      >
+        <rect x="70" y="70" width="60" height="60" rx="8" transform="rotate(45 100 100)" />
+        <rect x="45" y="45" width="110" height="110" rx="12" transform="rotate(45 100 100)" />
+        <rect x="20" y="20" width="160" height="160" rx="16" transform="rotate(45 100 100)" />
+      </svg>
+
+      <div className="relative w-full max-w-xl">
         {dataError && (
           <div className="mx-auto mb-5 max-w-sm rounded-xl border border-red-200 bg-red-50 px-4 py-3">
             <p className="text-sm font-extrabold text-red-600">No se pudieron cargar los datos</p>
@@ -17,14 +41,10 @@ export default function Login() {
             </p>
           </div>
         )}
-        <div className="mb-6 text-center">
-          <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-blue-600 text-xl font-black text-white shadow-lg shadow-blue-600/30">
-            R
-          </span>
-          <h1 className="mt-3 text-2xl font-black text-slate-800">
-            ReEduca <span className="text-slate-400">· Gestión de Equipo</span>
-          </h1>
-          <p className="mt-1 text-sm font-semibold text-slate-400">
+        <div className="mb-7 text-center">
+          <img src="/logo-blanco.svg" alt="ReEduca" className="mx-auto h-16 w-auto drop-shadow-lg" />
+          <h1 className="mt-4 text-xl font-extrabold text-white">Gestión de Equipo</h1>
+          <p className="mt-1 text-sm font-semibold text-blue-100">
             Agenda, tareas, proyectos y equipo en un solo lugar.
           </p>
         </div>

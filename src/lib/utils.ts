@@ -56,10 +56,12 @@ export const COLOR_PALETTE = [
   '#D9C3A8', // arena
   '#C9CDD6', // gris azulado
   '#B8C4B8', // salvia
-  '#F0A62B', // ámbar (clásico ReEduca)
-  '#5AB6E8', // celeste (clásico ReEduca)
-  '#F26CA7', // rosa fuerte (clásico ReEduca)
-  '#34C48E', // verde (clásico ReEduca)
+  // Colores oficiales de la marca (playbook ReEduca)
+  '#5DADEA', // celeste ReEduca
+  '#48A859', // verde ReEduca
+  '#F39221', // naranja ReEduca
+  '#FFF12C', // amarillo ReEduca
+  '#000B96', // azul marino ReEduca
 ]
 
 export const PROJECT_COLORS = COLOR_PALETTE

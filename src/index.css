@@ -1,7 +1,19 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Nunito", "Avenir Next", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Poppins", "Avenir Next", ui-sans-serif, system-ui, sans-serif;
+
+  /* Azul ReEduca (del playbook creativo) reemplaza a la escala azul estándar,
+     así toda la interfaz toma el color de marca automáticamente. */
+  --color-blue-50: #eef3ff;
+  --color-blue-100: #dfe9ff;
+  --color-blue-200: #bed3fe;
+  --color-blue-300: #92b3fd;
+  --color-blue-400: #5b8afa;
+  --color-blue-500: #2f63f8;
+  --color-blue-600: #0e4afb;
+  --color-blue-700: #0b39cf;
+  --color-blue-800: #0a2fa4;
 }
 
 html,

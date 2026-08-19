@@ -46,9 +46,9 @@ export default function TopBar({
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4">
       <div className="flex items-center gap-2">
-        <span className="grid size-8 place-items-center rounded-lg bg-blue-600 text-sm font-black text-white">R</span>
-        <span className="hidden font-black text-slate-800 sm:block">
-          ReEduca <span className="font-bold text-slate-400">· Equipo</span>
+        <img src="/logo-color.svg" alt="ReEduca" className="h-7 w-auto" />
+        <span className="hidden rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-extrabold tracking-wider text-blue-600 uppercase sm:block">
+          Equipo
         </span>
       </div>
 

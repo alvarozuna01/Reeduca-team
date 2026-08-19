@@ -539,17 +539,20 @@ function NoteEditor({
       const holder = document.createElement('div')
       holder.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;background:#ffffff'
       holder.innerHTML = `
-        <div id="pdf-nota" style="font-family:'Nunito',-apple-system,'Segoe UI',sans-serif;color:#1e293b;padding:48px;background:#ffffff">
+        <div id="pdf-nota" style="font-family:'Poppins',-apple-system,'Segoe UI',sans-serif;color:#1e293b;padding:48px;background:#ffffff">
           <style>
             #pdf-nota ul { list-style: disc; padding-left: 22px; margin: 8px 0; }
             #pdf-nota ol { list-style: decimal; padding-left: 22px; margin: 8px 0; }
             #pdf-nota li { margin: 3px 0; }
             #pdf-nota p { margin: 6px 0; }
           </style>
-          <div style="font-size:11px;font-weight:800;color:#94a3b8;letter-spacing:.12em;text-transform:uppercase">ReEduca · Cuaderno</div>
-          <h1 style="font-size:26px;font-weight:900;margin:8px 0 2px">${escapeHtml(note.title || 'Nota')}</h1>
-          <div style="font-size:11px;color:#94a3b8;margin-bottom:16px">${owner ? `Por ${escapeHtml(owner.name)} · ` : ''}${escapeHtml(fecha)}</div>
-          <hr style="border:none;border-top:1px solid #e2e8f0;margin-bottom:20px" />
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <img src="/logo-color.svg" style="height:32px" />
+            <span style="font-size:10px;font-weight:800;color:#5DADEA;letter-spacing:.14em;text-transform:uppercase">Cuaderno digital</span>
+          </div>
+          <h1 style="font-size:26px;font-weight:900;margin:18px 0 2px">${escapeHtml(note.title || 'Nota')}</h1>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:14px">${owner ? `Por ${escapeHtml(owner.name)} · ` : ''}${escapeHtml(fecha)}</div>
+          <hr style="border:none;border-top:3px solid #5DADEA;width:64px;margin:0 0 20px" />
           <div style="font-size:14px;line-height:1.75">${note.content}</div>
         </div>`
       document.body.appendChild(holder)
