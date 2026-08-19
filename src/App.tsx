@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { Task } from './types'
 import { todayKey } from './lib/utils'
 import { AppProvider, useApp } from './state/AppContext'
-import TopBar, { type View } from './components/TopBar'
+import TopBar, { BottomNav, type View } from './components/TopBar'
 import TaskEditor from './components/TaskEditor'
 import Login from './views/Login'
 import MiDia from './views/MiDia'
@@ -48,7 +48,7 @@ function Shell() {
   return (
     <div className="flex h-full flex-col">
       <TopBar view={view} setView={setView} onNew={() => setEditor({ defaults: { date: todayKey() } })} />
-      <main className="min-h-0 flex-1">
+      <main className="min-h-0 flex-1 pb-[calc(3.6rem+env(safe-area-inset-bottom))] md:pb-0">
         {view === 'midia' && (
           <MiDia
             onEdit={(t) => setEditor({ task: t })}
@@ -67,6 +67,7 @@ function Shell() {
         {view === 'proyectos' && <Proyectos />}
         {view === 'equipo' && <Equipo onEditTask={(t) => setEditor({ task: t })} />}
       </main>
+      <BottomNav view={view} setView={setView} />
       {editor && <TaskEditor task={editor.task} defaults={editor.defaults} onClose={() => setEditor(null)} />}
     </div>
   )

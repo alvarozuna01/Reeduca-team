@@ -52,7 +52,7 @@ export default function TopBar({
         </span>
       </div>
 
-      <nav className="mx-auto flex items-center gap-1">
+      <nav className="mx-auto hidden items-center gap-1 md:flex">
         {TABS.filter((t) => !t.adminOnly || isAdmin).map((t) => (
           <button
             key={t.id}
@@ -68,7 +68,7 @@ export default function TopBar({
         ))}
       </nav>
 
-      <div className="flex items-center gap-2.5">
+      <div className="ml-auto flex items-center gap-2.5 md:ml-0">
         {demo && (
           <span
             className="hidden rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-extrabold text-amber-700 lg:block"
@@ -120,6 +120,27 @@ export default function TopBar({
 
       {profileOpen && <ProfileModal onClose={() => setProfileOpen(false)} />}
     </header>
+  )
+}
+
+/** Navegación inferior para celulares (en pantallas grandes se usa la barra superior). */
+export function BottomNav({ view, setView }: { view: View; setView: (v: View) => void }) {
+  const { isAdmin } = useApp()
+  return (
+    <nav className="fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-slate-200 bg-white/95 pt-1 pb-[max(0.4rem,env(safe-area-inset-bottom))] backdrop-blur md:hidden">
+      {TABS.filter((t) => !t.adminOnly || isAdmin).map((t) => (
+        <button
+          key={t.id}
+          onClick={() => setView(t.id)}
+          className={`flex min-w-0 flex-col items-center gap-0.5 rounded-lg px-1.5 py-1 text-[9px] font-extrabold transition ${
+            view === t.id ? 'text-blue-600' : 'text-slate-400'
+          }`}
+        >
+          <t.icon size={19} />
+          <span className="truncate">{t.label}</span>
+        </button>
+      ))}
+    </nav>
   )
 }
 

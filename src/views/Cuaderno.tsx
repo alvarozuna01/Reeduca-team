@@ -3,6 +3,7 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import {
   Bold,
+  ChevronLeft,
   ChevronRight,
   FileDown,
   Folder,
@@ -25,6 +26,7 @@ import {
 } from 'lucide-react'
 import type { Note, NoteFolder, User } from '../types'
 import { noteDate, stripHtml, uid } from '../lib/utils'
+import { useIsMobile } from '../lib/useIsMobile'
 import { isDemo } from '../lib/api'
 import { supabase } from '../lib/supabaseClient'
 import { useApp } from '../state/AppContext'
@@ -52,9 +54,21 @@ export default function Cuaderno({
     removePin,
   } = useApp()
   const me = currentUser!
+  const isMobile = useIsMobile()
 
   const [selectedFolderId, setSelectedFolderId] = useState<string>('all') // 'all' | 'shared' | id de carpeta
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null)
+  // En celular se ve una pantalla por vez: carpetas → lista → editor
+  const [pane, setPane] = useState<'folders' | 'list' | 'editor'>('list')
+
+  const pickFolder = (id: string) => {
+    setSelectedFolderId(id)
+    if (isMobile) setPane('list')
+  }
+  const pickNote = (id: string) => {
+    setSelectedNoteId(id)
+    if (isMobile) setPane('editor')
+  }
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState('')
   const [folderModal, setFolderModal] = useState<
@@ -97,6 +111,7 @@ export default function Cuaderno({
     if (n) {
       setSelectedNoteId(n.id)
       setSelectedFolderId(n.userId === me.id ? (n.folderId ?? 'all') : 'shared')
+      if (isMobile) setPane('editor')
     }
     onNoteOpened?.()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -136,12 +151,16 @@ export default function Cuaderno({
     upsertNote(n)
     if (selectedFolderId === 'shared') setSelectedFolderId('all')
     setSelectedNoteId(n.id)
+    if (isMobile) setPane('editor')
   }
 
   const deleteNote = (n: Note) => {
     if (confirm(`¿Eliminar la nota "${n.title || 'Nota nueva'}"?`)) {
       removeNote(n.id)
-      if (selectedNoteId === n.id) setSelectedNoteId(null)
+      if (selectedNoteId === n.id) {
+        setSelectedNoteId(null)
+        if (isMobile) setPane('list')
+      }
     }
   }
 
@@ -181,7 +200,7 @@ export default function Cuaderno({
     return (
       <div key={f.id}>
         <div
-          onClick={() => setSelectedFolderId(f.id)}
+          onClick={() => pickFolder(f.id)}
           className={`group/f flex cursor-pointer items-center gap-1 rounded-lg py-1.5 pr-2 transition ${
             active ? 'bg-blue-100/70 text-blue-700' : 'text-slate-600 hover:bg-slate-100'
           }`}
@@ -198,7 +217,7 @@ export default function Cuaderno({
           </button>
           <Folder size={14} className={active ? 'text-blue-500' : 'text-slate-400'} />
           <span className="flex-1 truncate text-[13px] font-bold">{f.name}</span>
-          <span className="hidden items-center gap-0.5 group-hover/f:flex">
+          <span className="flex items-center gap-0.5 md:hidden md:group-hover/f:flex">
             <button
               title="Nueva subcarpeta"
               onClick={(e) => {
@@ -230,7 +249,9 @@ export default function Cuaderno({
               <Trash2 size={12} />
             </button>
           </span>
-          <span className="text-[10px] font-bold text-slate-300 group-hover/f:hidden">{count || ''}</span>
+          <span className="hidden text-[10px] font-bold text-slate-300 md:block md:group-hover/f:hidden">
+            {count || ''}
+          </span>
         </div>
         {open && kids.map((k) => renderFolder(k, depth + 1))}
       </div>
@@ -246,7 +267,7 @@ export default function Cuaderno({
     return (
       <button
         key={n.id}
-        onClick={() => setSelectedNoteId(n.id)}
+        onClick={() => pickNote(n.id)}
         className={`group/n block w-full rounded-xl px-3 py-2.5 text-left transition ${
           active ? 'bg-blue-600 text-white' : 'hover:bg-slate-100'
         }`}
@@ -269,7 +290,7 @@ export default function Cuaderno({
                   ? active
                     ? 'text-amber-300'
                     : 'text-amber-500'
-                  : `opacity-0 group-hover/n:opacity-100 ${active ? 'text-blue-200 hover:text-white' : 'text-slate-300 hover:text-amber-500'}`
+                  : `opacity-100 md:opacity-0 md:group-hover/n:opacity-100 ${active ? 'text-blue-200 hover:text-white' : 'text-slate-300 hover:text-amber-500'}`
               }`}
             >
               <Pin size={13} className={n.pinned ? 'fill-current' : ''} />
@@ -288,7 +309,11 @@ export default function Cuaderno({
   return (
     <div className="flex h-full">
       {/* Columna 1: árbol de carpetas */}
-      <aside className="flex w-56 shrink-0 flex-col border-r border-slate-200 bg-slate-50/70">
+      <aside
+        className={`${
+          isMobile ? (pane === 'folders' ? 'flex w-full' : 'hidden') : 'flex w-56'
+        } shrink-0 flex-col border-r border-slate-200 bg-slate-50/70`}
+      >
         <div className="flex items-center justify-between px-3 pt-3 pb-2">
           <span className="text-[11px] font-extrabold tracking-wider text-slate-400 uppercase">Mi Cuaderno</span>
           <button
@@ -301,7 +326,7 @@ export default function Cuaderno({
         </div>
         <div className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-3">
           <div
-            onClick={() => setSelectedFolderId('all')}
+            onClick={() => pickFolder('all')}
             className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 transition ${
               selectedFolderId === 'all' ? 'bg-blue-100/70 text-blue-700' : 'text-slate-600 hover:bg-slate-100'
             }`}
@@ -311,7 +336,7 @@ export default function Cuaderno({
             <span className="text-[10px] font-bold text-slate-300">{ownNotes.length}</span>
           </div>
           <div
-            onClick={() => setSelectedFolderId('shared')}
+            onClick={() => pickFolder('shared')}
             className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 transition ${
               selectedFolderId === 'shared' ? 'bg-blue-100/70 text-blue-700' : 'text-slate-600 hover:bg-slate-100'
             }`}
@@ -329,9 +354,22 @@ export default function Cuaderno({
       </aside>
 
       {/* Columna 2: lista de notas */}
-      <div className="flex w-72 shrink-0 flex-col border-r border-slate-200 bg-white">
+      <div
+        className={`${
+          isMobile ? (pane === 'list' ? 'flex w-full' : 'hidden') : 'flex w-72'
+        } shrink-0 flex-col border-r border-slate-200 bg-white`}
+      >
         <div className="flex items-center justify-between px-3 pt-3 pb-1.5">
-          <span className="truncate font-extrabold text-slate-700">
+          {isMobile && (
+            <button
+              onClick={() => setPane('folders')}
+              title="Ver carpetas"
+              className="mr-1 rounded-lg p-1 text-slate-400 hover:bg-slate-100"
+            >
+              <ChevronLeft size={18} />
+            </button>
+          )}
+          <span className="flex-1 truncate font-extrabold text-slate-700">
             {selectedFolderId === 'shared' ? 'Compartidas conmigo' : (selectedFolder?.name ?? 'Todas las notas')}
           </span>
           <button title="Nueva nota" onClick={createNote} className="rounded-lg p-1.5 text-blue-600 hover:bg-blue-50">
@@ -373,11 +411,12 @@ export default function Cuaderno({
       </div>
 
       {/* Columna 3: editor */}
-      <div className="flex min-w-0 flex-1 flex-col bg-white">
+      <div className={`${isMobile && pane !== 'editor' ? 'hidden' : 'flex'} min-w-0 flex-1 flex-col bg-white`}>
         {selectedNote ? (
           <NoteEditor
             key={selectedNote.id}
             note={selectedNote}
+            onBack={isMobile ? () => setPane('list') : undefined}
             isOwner={selectedNote.userId === me.id}
             owner={users.find((u) => u.id === selectedNote.userId)}
             teammates={users.filter((u) => u.id !== selectedNote.userId)}
@@ -448,6 +487,7 @@ function NoteEditor({
   onToggleDayPin,
   onSave,
   onDelete,
+  onBack,
 }: {
   note: Note
   isOwner: boolean
@@ -458,6 +498,7 @@ function NoteEditor({
   onToggleDayPin: () => void
   onSave: (patch: Partial<Note>) => void
   onDelete: () => void
+  onBack?: () => void
 }) {
   const bodyRef = useRef<HTMLDivElement>(null)
   const timer = useRef<number | undefined>(undefined)
@@ -542,7 +583,12 @@ function NoteEditor({
 
   return (
     <>
-      <div className="flex items-center gap-0.5 border-b border-slate-100 px-4 py-2">
+      <div className="flex items-center gap-0.5 border-b border-slate-100 px-2 py-2 md:px-4">
+        {onBack && (
+          <button title="Volver a la lista" onClick={onBack} className="mr-0.5 rounded-md p-1.5 text-slate-500 hover:bg-slate-100">
+            <ChevronLeft size={18} />
+          </button>
+        )}
         <button title="Negrita" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('bold')} className={toolBtn}>
           <Bold size={15} />
         </button>

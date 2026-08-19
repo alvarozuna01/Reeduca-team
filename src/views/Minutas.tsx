@@ -1,17 +1,21 @@
 import { useMemo, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { CheckCircle2, ClipboardList, Plus, Trash2, Wand2 } from 'lucide-react'
+import { CheckCircle2, ChevronLeft, ClipboardList, Plus, Trash2, Wand2 } from 'lucide-react'
 import type { Minute, MinuteAction, Task } from '../types'
 import { textOn, todayKey, uid } from '../lib/utils'
+import { useIsMobile } from '../lib/useIsMobile'
 import { useApp } from '../state/AppContext'
 import { Avatar, AvatarStack } from '../components/Avatar'
 import Modal, { Field, inputCls } from '../components/Modal'
 
 export default function Minutas({ onEditTask }: { onEditTask: (t: Task) => void }) {
   const { minutes, users, tasks, currentUser, upsertMinute, removeMinute } = useApp()
+  const isMobile = useIsMobile()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [convert, setConvert] = useState<{ minute: Minute; action: MinuteAction } | null>(null)
+  // En celular se ve una pantalla por vez: lista → detalle
+  const [pane, setPane] = useState<'list' | 'detail'>('list')
 
   const sorted = useMemo(() => [...minutes].sort((a, b) => b.date.localeCompare(a.date)), [minutes])
   const sel = minutes.find((m) => m.id === selectedId) ?? sorted[0] ?? null
@@ -27,12 +31,14 @@ export default function Minutas({ onEditTask }: { onEditTask: (t: Task) => void 
     }
     upsertMinute(m)
     setSelectedId(m.id)
+    if (isMobile) setPane('detail')
   }
 
   const deleteMinute = (m: Minute) => {
     if (confirm(`¿Eliminar la minuta "${m.title}"? Las tareas ya creadas desde sus acciones no se borran.`)) {
       removeMinute(m.id)
       if (selectedId === m.id) setSelectedId(null)
+      if (isMobile) setPane('list')
     }
   }
 
@@ -44,7 +50,11 @@ export default function Minutas({ onEditTask }: { onEditTask: (t: Task) => void 
   return (
     <div className="flex h-full">
       {/* Lista de minutas */}
-      <div className="flex w-80 shrink-0 flex-col border-r border-slate-200 bg-white">
+      <div
+        className={`${
+          isMobile ? (pane === 'list' ? 'flex w-full' : 'hidden') : 'flex w-80'
+        } shrink-0 flex-col border-r border-slate-200 bg-white`}
+      >
         <div className="flex items-center justify-between px-4 pt-3 pb-2">
           <span className="font-extrabold text-slate-700">Minutas de reuniones</span>
           <button
@@ -66,7 +76,10 @@ export default function Minutas({ onEditTask }: { onEditTask: (t: Task) => void 
             return (
               <button
                 key={m.id}
-                onClick={() => setSelectedId(m.id)}
+                onClick={() => {
+                  setSelectedId(m.id)
+                  if (isMobile) setPane('detail')
+                }}
                 className={`block w-full rounded-xl border px-3.5 py-3 text-left transition ${
                   active ? 'border-blue-300 bg-blue-50/70 shadow-sm' : 'border-slate-100 bg-white hover:border-slate-200 hover:shadow-sm'
                 }`}
@@ -89,7 +102,7 @@ export default function Minutas({ onEditTask }: { onEditTask: (t: Task) => void 
       </div>
 
       {/* Detalle */}
-      <div className="min-w-0 flex-1 overflow-y-auto">
+      <div className={`${isMobile && pane !== 'detail' ? 'hidden' : 'block'} min-w-0 flex-1 overflow-y-auto`}>
         {!sel ? (
           <div className="grid h-full place-items-center">
             <div className="text-center">
@@ -98,7 +111,15 @@ export default function Minutas({ onEditTask }: { onEditTask: (t: Task) => void 
             </div>
           </div>
         ) : (
-          <div className="mx-auto max-w-3xl px-6 py-5">
+          <div className="mx-auto max-w-3xl px-4 py-5 md:px-6">
+            {isMobile && (
+              <button
+                onClick={() => setPane('list')}
+                className="mb-2 flex items-center gap-1 rounded-lg py-1 pr-2 text-sm font-bold text-slate-500 hover:bg-slate-100"
+              >
+                <ChevronLeft size={16} /> Minutas
+              </button>
+            )}
             <div className="flex items-start justify-between gap-3">
               <input
                 value={sel.title}

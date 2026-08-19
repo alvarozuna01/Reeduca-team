@@ -198,7 +198,7 @@ export default function MiDia({
                     <button
                       onClick={() => removePin(p.id)}
                       title="Quitar de fijados"
-                      className="rounded-lg p-1.5 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:bg-red-50 hover:text-red-500"
+                      className="rounded-lg p-1.5 text-slate-300 transition hover:bg-red-50 hover:text-red-500 md:opacity-0 md:group-hover:opacity-100"
                     >
                       <X size={15} />
                     </button>
@@ -212,7 +212,7 @@ export default function MiDia({
                   <button
                     onClick={() => removePin(p.id)}
                     title="Quitar de fijados"
-                    className="rounded-lg p-1.5 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:bg-red-50 hover:text-red-500"
+                    className="rounded-lg p-1.5 text-slate-300 transition hover:bg-red-50 hover:text-red-500 md:opacity-0 md:group-hover:opacity-100"
                   >
                     <X size={15} />
                   </button>

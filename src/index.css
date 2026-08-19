@@ -5,9 +5,13 @@
 }
 
 html,
-body,
+body {
+  height: 100%;
+}
+
 #root {
   height: 100%;
+  height: 100dvh; /* altura real en celulares (barra del navegador que aparece/desaparece) */
 }
 
 body {

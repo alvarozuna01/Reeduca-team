@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   pointerWithin,
   rectIntersection,
   useDraggable,
@@ -71,7 +72,10 @@ export default function Kanban({ onEdit }: { onEdit: (t: Task) => void }) {
   }, [tasks, projectFilter, userFilter, weekFilter, weekOptions])
 
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) : undefined
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+  )
 
   const onDragStart = (e: DragStartEvent) => setActiveId(String(e.active.id))
   const onDragEnd = (e: DragEndEvent) => {
@@ -156,7 +160,7 @@ export default function Kanban({ onEdit }: { onEdit: (t: Task) => void }) {
           onDragEnd={onDragEnd}
           onDragCancel={() => setActiveId(null)}
         >
-          <div className="grid h-full min-w-[760px] grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 md:h-full md:min-w-[760px] md:grid-cols-3">
             {COLS.map((col) => {
               const colTasks = filtered.filter((t) => t.status === col.status)
               return (
@@ -207,7 +211,7 @@ function Column({
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
   return (
-    <div className={`flex min-h-[300px] flex-col rounded-xl bg-slate-100/80 p-2.5 transition ${isOver ? 'ring-2 ring-blue-300' : ''}`}>
+    <div className={`flex min-h-32 flex-col rounded-xl bg-slate-100/80 p-2.5 transition md:min-h-[300px] ${isOver ? 'ring-2 ring-blue-300' : ''}`}>
       <div className="flex items-center gap-2 px-1 pb-2">
         <span className="size-2.5 rounded-full" style={{ background: dot }} />
         <span className="text-sm font-extrabold text-slate-600">{label}</span>
@@ -223,7 +227,13 @@ function Column({
 function DraggableCard({ id, children }: { id: string; children: React.ReactNode }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id })
   return (
-    <div ref={setNodeRef} {...attributes} {...listeners} className={isDragging ? 'opacity-30' : undefined}>
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      style={{ touchAction: 'manipulation' }}
+      className={isDragging ? 'opacity-30' : undefined}
+    >
       {children}
     </div>
   )
