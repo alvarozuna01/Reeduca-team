@@ -1,4 +1,4 @@
-import type { DB, Minute, Note, NoteFolder, Pin, Project, Task, User } from '../types'
+import type { DB, Hito, Minute, Note, NoteFolder, Pin, Project, Task, User } from '../types'
 import { localApi } from './localApi'
 import { supabaseApi } from './supabaseApi'
 import { supabase } from './supabaseClient'
@@ -27,6 +27,8 @@ export interface Api {
   deleteMinute(id: string): Promise<void>
   savePin(p: Pin): Promise<void>
   deletePin(id: string): Promise<void>
+  saveHito(h: Hito): Promise<void>
+  deleteHito(id: string): Promise<void>
 }
 
 export const api: Api = supabase ? supabaseApi : localApi

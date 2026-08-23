@@ -1,5 +1,5 @@
 import { addDays } from 'date-fns'
-import type { DB, Minute, Note, NoteFolder, Pin, Task } from '../types'
+import type { DB, Hito, Minute, Note, NoteFolder, Pin, Task } from '../types'
 import { toKey, uid, weekDays } from './utils'
 
 /**
@@ -31,13 +31,19 @@ export function seedDB(): DB {
     t: Omit<Task, 'id' | 'position' | 'checklist' | 'links' | 'urgent' | 'importance'> &
       Partial<Pick<Task, 'checklist' | 'links' | 'urgent' | 'importance'>>,
   ): Task => {
-    pos[t.date] = (pos[t.date] ?? 0) + 1
-    return { id: uid(), position: pos[t.date], checklist: [], links: [], urgent: false, importance: 0, ...t }
+    const key = t.date ?? 'backlog'
+    pos[key] = (pos[key] ?? 0) + 1
+    return { id: uid(), position: pos[key], checklist: [], links: [], urgent: false, importance: 0, ...t }
   }
+
+  const hitos: Hito[] = [
+    { id: 'h-modulo4', projectId: 'p-academico', name: 'Cierre del Módulo 4', date: toKey(addDays(wk[5], 14)), position: 0 },
+    { id: 'h-intercolegial', projectId: 'p-comercial', name: 'Intercolegial Cristo Rey', date: vie, position: 1 },
+  ]
 
   const tasks: Task[] = [
     // LUNES
-    mk({ projectId: 'p-academico', title: 'Escritura · Unidad 4 · 4to', description: '(antes: Desarrollo: contenido técnico y pedagógico Módulo 4)', date: lun, assigneeIds: ['u-pato'], status: 'doing' }),
+    mk({ projectId: 'p-academico', title: 'Escritura · Unidad 4 · 4to', description: '(antes: Desarrollo: contenido técnico y pedagógico Módulo 4)', date: lun, assigneeIds: ['u-pato'], status: 'doing', hitoId: 'h-modulo4' }),
     mk({
       projectId: 'p-academico', title: 'Tutorial de creación de VEX ID', description: 'Trabajar la edición: Lu.', date: lun,
       assigneeIds: ['u-malena', 'u-lucia', 'u-alvaro'], status: 'done',
@@ -84,7 +90,7 @@ export function seedDB(): DB {
       checklist: [{ id: uid(), text: 'Insumo para Matriz de Certificación', done: false }],
     }),
     mk({ projectId: 'p-academico', title: 'Capacitación pres. M1+M2.S1', description: 'Grupo 1 Central.', date: vie, startTime: '13:00', endTime: '17:00', assigneeIds: ['u-pato', 'u-lucia'], status: 'todo' }),
-    mk({ projectId: 'p-comercial', title: 'Preparar insumos para el Intercolegial Cristo Rey', date: vie, assigneeIds: ['u-malena', 'u-lucia'], status: 'todo' }),
+    mk({ projectId: 'p-comercial', title: 'Preparar insumos para el Intercolegial Cristo Rey', date: vie, assigneeIds: ['u-malena', 'u-lucia'], status: 'todo', hitoId: 'h-intercolegial' }),
     mk({ projectId: 'p-cultura', title: 'Cumpleaños de Lu!!!', date: vie, assigneeIds: ['u-alvaro', 'u-malena', 'u-coty', 'u-pato'], status: 'todo' }),
     mk({ projectId: 'p-comercial', title: 'Montar cancha en Cristo Rey', date: vie, assigneeIds: ['u-malena', 'u-alvaro'], status: 'todo' }),
 
@@ -93,6 +99,10 @@ export function seedDB(): DB {
     mk({ projectId: 'p-academico', title: 'Capacitación pres. M3.S1', description: 'Grupo 2 Paraguarí.', date: mar2, startTime: '13:00', endTime: '17:00', assigneeIds: ['u-pato', 'u-lucia'], status: 'todo' }),
     mk({ projectId: 'p-comercial', title: 'Seguimiento de pipeline con Lu', date: mar2, assigneeIds: ['u-lucia', 'u-malena'], status: 'todo' }),
     mk({ projectId: 'p-admin', title: 'Cierre contable de agosto', date: jue2, assigneeIds: ['u-malena', 'u-alvaro'], status: 'todo', urgent: true, importance: 4 }),
+
+    // SIN FECHA (bandeja)
+    mk({ projectId: 'p-academico', title: 'Actualizar manual de bienvenida docente', date: null, assigneeIds: ['u-pato'], status: 'todo', hitoId: 'h-modulo4' }),
+    mk({ projectId: 'p-comercial', title: 'Armar lista de colegios para la próxima cohorte', date: null, assigneeIds: ['u-lucia'], status: 'todo' }),
   ]
 
   const noteFolders: NoteFolder[] = [
@@ -150,5 +160,5 @@ export function seedDB(): DB {
     },
   ]
 
-  return { users, projects, tasks, notes, noteFolders, minutes, pins }
+  return { users, projects, tasks, hitos, notes, noteFolders, minutes, pins }
 }

@@ -1,4 +1,4 @@
-import type { DB, Minute, Note, NoteFolder, Pin, Project, Task, User } from '../types'
+import type { DB, Hito, Minute, Note, NoteFolder, Pin, Project, Task, User } from '../types'
 import type { Api } from './api'
 import { supabase } from './supabaseClient'
 
@@ -10,7 +10,8 @@ const rowToTask = (r: any): Task => ({
   projectId: r.project_id,
   title: r.title,
   description: r.description ?? undefined,
-  date: r.date,
+  date: r.date ?? null,
+  hitoId: r.hito_id ?? null,
   startTime: r.start_time ?? undefined,
   endTime: r.end_time ?? undefined,
   assigneeIds: r.assignee_ids ?? [],
@@ -27,7 +28,8 @@ const taskToRow = (t: Task) => ({
   project_id: t.projectId,
   title: t.title,
   description: t.description || null,
-  date: t.date,
+  date: t.date || null,
+  hito_id: t.hitoId || null,
   start_time: t.startTime || null,
   end_time: t.endTime || null,
   assignee_ids: t.assigneeIds,
@@ -79,6 +81,23 @@ const pinToRow = (p: Pin) => ({
   note_id: p.noteId ?? null,
   text: p.text ?? null,
   position: p.position,
+})
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const rowToHito = (r: any): Hito => ({
+  id: r.id,
+  projectId: r.project_id,
+  name: r.name,
+  date: r.date ?? null,
+  position: r.position ?? 0,
+})
+
+const hitoToRow = (h: Hito) => ({
+  id: h.id,
+  project_id: h.projectId,
+  name: h.name,
+  date: h.date || null,
+  position: h.position,
 })
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -168,6 +187,7 @@ export const REALTIME_TABLES: { table: string; key: keyof DB; map: (r: any) => {
   { table: 'note_folders', key: 'noteFolders', map: rowToFolder },
   { table: 'minutes', key: 'minutes', map: rowToMinute },
   { table: 'pins', key: 'pins', map: rowToPin },
+  { table: 'hitos', key: 'hitos', map: rowToHito },
 ]
 
 export const supabaseApi: Api = {
@@ -189,8 +209,9 @@ export const supabaseApi: Api = {
     check(notes.error)
     check(folders.error)
     check(minutes.error)
-    // pins es de la Fase 3: si la tabla todavía no existe, la app sigue andando.
+    // pins e hitos son de fases nuevas: si las tablas no existen, la app sigue andando.
     const pins = await sb.from('pins').select('*').then((r) => (r.error ? [] : (r.data ?? [])))
+    const hitos = await sb.from('hitos').select('*').order('position').then((r) => (r.error ? [] : (r.data ?? [])))
     return {
       users: (users.data ?? []).map(rowToUser),
       projects: (projects.data ?? []).map(rowToProject),
@@ -199,6 +220,7 @@ export const supabaseApi: Api = {
       noteFolders: (folders.data ?? []).map(rowToFolder),
       minutes: (minutes.data ?? []).map(rowToMinute),
       pins: pins.map(rowToPin),
+      hitos: hitos.map(rowToHito),
     }
   },
 
@@ -269,5 +291,14 @@ export const supabaseApi: Api = {
 
   async deletePin(id) {
     check((await supabase!.from('pins').delete().eq('id', id)).error)
+  },
+
+  async saveHito(h) {
+    check((await supabase!.from('hitos').upsert(hitoToRow(h))).error)
+  },
+
+  async deleteHito(id) {
+    // las tareas vinculadas quedan sin hito (FK ON DELETE SET NULL)
+    check((await supabase!.from('hitos').delete().eq('id', id)).error)
   },
 }

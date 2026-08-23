@@ -38,7 +38,9 @@ export default function MiDia({
         .filter((t) => t.importance >= 4 && t.status !== 'done')
         .sort(
           (a, b) =>
-            b.importance - a.importance || Number(b.urgent) - Number(a.urgent) || a.date.localeCompare(b.date),
+            b.importance - a.importance ||
+            Number(b.urgent) - Number(a.urgent) ||
+            (a.date ?? '9999-99').localeCompare(b.date ?? '9999-99'),
         ),
     [mine],
   )
@@ -101,7 +103,7 @@ export default function MiDia({
                       <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold text-slate-400">
                         <Stars value={t.importance} />
                         {t.urgent && <UrgentPill />}
-                        <span>{p?.name}</span>·<span>{t.date}</span>
+                        <span>{p?.name}</span>·<span>{t.date ?? '📥 sin fecha'}</span>
                       </span>
                     </span>
                     <AvatarStack users={users.filter((u) => t.assigneeIds.includes(u.id))} size={18} />

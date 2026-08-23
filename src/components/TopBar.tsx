@@ -2,6 +2,7 @@ import { useState } from 'react'
 import {
   CalendarDays,
   ClipboardList,
+  Flag,
   FolderOpen,
   LogOut,
   NotebookPen,
@@ -16,12 +17,13 @@ import { USER_COLORS } from '../lib/utils'
 import { Avatar } from './Avatar'
 import Modal, { Field, inputCls } from './Modal'
 
-export type View = 'midia' | 'agenda' | 'kanban' | 'minutas' | 'cuaderno' | 'proyectos' | 'equipo'
+export type View = 'midia' | 'agenda' | 'kanban' | 'hitos' | 'minutas' | 'cuaderno' | 'proyectos' | 'equipo'
 
 const TABS: { id: View; label: string; icon: typeof CalendarDays; adminOnly?: boolean }[] = [
   { id: 'midia', label: 'Mi Día', icon: Sunrise },
   { id: 'agenda', label: 'Agenda', icon: CalendarDays },
   { id: 'kanban', label: 'Kanban', icon: SquareKanban },
+  { id: 'hitos', label: 'Hitos', icon: Flag },
   { id: 'minutas', label: 'Minutas', icon: ClipboardList },
   { id: 'cuaderno', label: 'Cuaderno', icon: NotebookPen },
   { id: 'proyectos', label: 'Proyectos', icon: FolderOpen },

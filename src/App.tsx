@@ -8,6 +8,7 @@ import Login from './views/Login'
 import MiDia from './views/MiDia'
 import Agenda from './views/Agenda'
 import Kanban from './views/Kanban'
+import Hitos from './views/Hitos'
 import Minutas from './views/Minutas'
 import Cuaderno from './views/Cuaderno'
 import Proyectos from './views/Proyectos'
@@ -62,6 +63,7 @@ function Shell() {
           <Agenda onEdit={(t) => setEditor({ task: t })} onNew={(defaults) => setEditor({ defaults })} />
         )}
         {view === 'kanban' && <Kanban onEdit={(t) => setEditor({ task: t })} />}
+        {view === 'hitos' && <Hitos onEditTask={(t) => setEditor({ task: t })} />}
         {view === 'minutas' && <Minutas onEditTask={(t) => setEditor({ task: t })} />}
         {view === 'cuaderno' && <Cuaderno openNoteId={noteToOpen} onNoteOpened={() => setNoteToOpen(null)} />}
         {view === 'proyectos' && <Proyectos />}

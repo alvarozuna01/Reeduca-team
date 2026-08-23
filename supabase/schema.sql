@@ -21,13 +21,23 @@ create table public.projects (
   description text
 );
 
--- Tareas
+-- Hitos (metas grandes de cada proyecto)
+create table public.hitos (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references public.projects (id) on delete cascade,
+  name text not null,
+  date date,
+  position integer not null default 0
+);
+
+-- Tareas (date null = "sin fecha", va a la bandeja de la Agenda)
 create table public.tasks (
   id uuid primary key default gen_random_uuid(),
   project_id uuid not null references public.projects (id) on delete cascade,
+  hito_id uuid references public.hitos (id) on delete set null,
   title text not null,
   description text,
-  date date not null,
+  date date,
   start_time text,
   end_time text,
   assignee_ids uuid[] not null default '{}',
@@ -106,6 +116,7 @@ create trigger on_auth_user_created
 -- Seguridad (RLS): solo usuarios con sesión iniciada pueden leer/escribir.
 alter table public.profiles enable row level security;
 alter table public.projects enable row level security;
+alter table public.hitos enable row level security;
 alter table public.tasks enable row level security;
 alter table public.note_folders enable row level security;
 alter table public.notes enable row level security;
@@ -119,6 +130,9 @@ create policy "projects_authenticated" on public.projects
   for all to authenticated using (true) with check (true);
 
 create policy "tasks_authenticated" on public.tasks
+  for all to authenticated using (true) with check (true);
+
+create policy "hitos_authenticated" on public.hitos
   for all to authenticated using (true) with check (true);
 
 create policy "minutes_authenticated" on public.minutes
@@ -157,3 +171,4 @@ do $$ begin alter publication supabase_realtime add table public.notes; exceptio
 do $$ begin alter publication supabase_realtime add table public.note_folders; exception when duplicate_object then null; end $$;
 do $$ begin alter publication supabase_realtime add table public.minutes; exception when duplicate_object then null; end $$;
 do $$ begin alter publication supabase_realtime add table public.pins; exception when duplicate_object then null; end $$;
+do $$ begin alter publication supabase_realtime add table public.hitos; exception when duplicate_object then null; end $$;

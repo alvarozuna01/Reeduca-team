@@ -22,6 +22,7 @@ import { addWeeks } from 'date-fns'
 import { useApp } from '../state/AppContext'
 import { AvatarStack } from '../components/Avatar'
 import { ImportancePill, UrgentPill } from '../components/Stars'
+import MultiFilter from '../components/MultiFilter'
 
 const COLS: { status: Status; label: string; dot: string }[] = [
   { status: 'todo', label: 'Por hacer', dot: '#94A3B8' },
@@ -39,8 +40,8 @@ const selCls =
 
 export default function Kanban({ onEdit }: { onEdit: (t: Task) => void }) {
   const { tasks, projects, users, upsertTask } = useApp()
-  const [projectFilter, setProjectFilter] = useState('')
-  const [userFilter, setUserFilter] = useState('')
+  const [projectFilter, setProjectFilter] = useState<string[]>([])
+  const [userFilter, setUserFilter] = useState<string[]>([])
   const [weekFilter, setWeekFilter] = useState('') // clave del domingo de la semana, '' = todas
   const [activeId, setActiveId] = useState<string | null>(null)
 
@@ -64,11 +65,11 @@ export default function Kanban({ onEdit }: { onEdit: (t: Task) => void }) {
     return tasks
       .filter(
         (t) =>
-          (!projectFilter || t.projectId === projectFilter) &&
-          (!userFilter || t.assigneeIds.includes(userFilter)) &&
+          (projectFilter.length === 0 || projectFilter.includes(t.projectId)) &&
+          (userFilter.length === 0 || t.assigneeIds.some((a) => userFilter.includes(a))) &&
           (!week || taskInWeek(t, week)),
       )
-      .sort((a, b) => a.date.localeCompare(b.date) || a.position - b.position)
+      .sort((a, b) => (a.date ?? '9999-99').localeCompare(b.date ?? '9999-99') || a.position - b.position)
   }, [tasks, projectFilter, userFilter, weekFilter, weekOptions])
 
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) : undefined
@@ -97,14 +98,12 @@ export default function Kanban({ onEdit }: { onEdit: (t: Task) => void }) {
           · Arrastrá una tarjeta a otra columna para cambiar su estado
         </span>
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <select value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)} className={selCls}>
-            <option value="">Todos los proyectos</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+          <MultiFilter
+            label="Proyectos"
+            options={projects.map((p) => ({ id: p.id, label: p.name, color: p.color }))}
+            selected={projectFilter}
+            onChange={setProjectFilter}
+          />
           <select value={weekFilter} onChange={(e) => setWeekFilter(e.target.value)} className={selCls}>
             <option value="">Todas las semanas</option>
             {weekOptions.map((w) => (
@@ -113,14 +112,12 @@ export default function Kanban({ onEdit }: { onEdit: (t: Task) => void }) {
               </option>
             ))}
           </select>
-          <select value={userFilter} onChange={(e) => setUserFilter(e.target.value)} className={selCls}>
-            <option value="">Todas las personas</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name}
-              </option>
-            ))}
-          </select>
+          <MultiFilter
+            label="Personas"
+            options={users.map((u) => ({ id: u.id, label: u.name, user: u }))}
+            selected={userFilter}
+            onChange={setUserFilter}
+          />
         </div>
       </div>
 
@@ -263,7 +260,7 @@ function KanbanCard({
         {task.title}
       </p>
       <p className="mt-1 text-[11px] font-semibold text-slate-400 capitalize">
-        {format(parseISO(task.date), 'EEE d MMM', { locale: es })}
+        {task.date ? format(parseISO(task.date), 'EEE d MMM', { locale: es }) : '📥 Sin fecha'}
         {task.startTime ? ` · ${task.startTime} hs.` : ''}
         {project ? ` · ${project.name}` : ''}
       </p>

@@ -35,7 +35,8 @@ export interface Task {
   projectId: string
   title: string
   description?: string
-  date: string // YYYY-MM-DD
+  date: string | null // YYYY-MM-DD, o null = "sin fecha" (bandeja)
+  hitoId?: string | null // hito al que aporta esta tarea
   startTime?: string // HH:mm
   endTime?: string // HH:mm
   assigneeIds: string[]
@@ -77,6 +78,16 @@ export interface Pin {
   position: number
 }
 
+/* ---- Hitos (metas grandes de cada proyecto) ---- */
+
+export interface Hito {
+  id: string
+  projectId: string
+  name: string
+  date: string | null // fecha objetivo (opcional)
+  position: number
+}
+
 /* ---- Minutas de reuniones ---- */
 
 export interface MinuteAction {
@@ -98,6 +109,7 @@ export interface DB {
   users: User[]
   projects: Project[]
   tasks: Task[]
+  hitos: Hito[]
   notes: Note[]
   noteFolders: NoteFolder[]
   minutes: Minute[]

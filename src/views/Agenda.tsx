@@ -18,24 +18,28 @@ import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities'
 import { addWeeks, format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Inbox, Plus } from 'lucide-react'
 import type { Task } from '../types'
-import { dayName, rangeLabel, tasksOfDay, toKey, todayKey, weekDays } from '../lib/utils'
+import { backlogTasks, dayName, rangeLabel, tasksOfDay, toKey, todayKey, weekDays } from '../lib/utils'
 import { useIsMobile } from '../lib/useIsMobile'
 import { useApp } from '../state/AppContext'
 import TaskCard from '../components/TaskCard'
+import MultiFilter from '../components/MultiFilter'
 
 type Cols = Record<string, string[]>
 
-// Prioriza la posición real del puntero (clave para mover tarjetas entre días,
-// incluso hacia zonas vacías de otra columna); si no hay match, usa closestCorners.
+const BACKLOG = 'backlog'
+
+// Prioriza la posición real del puntero; si no hay match, usa closestCorners.
 const collisionDetection: CollisionDetection = (args) => {
   const within = pointerWithin(args)
   return within.length ? within : closestCorners(args)
 }
 
-// En el celular, las pastillas de día son zonas para soltar: usan id "chip-FECHA".
+// Las pastillas de día (celular) son zonas para soltar: usan id "chip-CLAVE".
 const resolveKey = (id: string) => (id.startsWith('chip-') ? id.slice(5) : id)
+// Clave de columna → fecha de la tarea ('backlog' → sin fecha)
+const dateOf = (key: string): string | null => (key === BACKLOG ? null : key)
 
 export default function Agenda({
   onEdit,
@@ -48,18 +52,32 @@ export default function Agenda({
   const isMobile = useIsMobile()
   const [anchor, setAnchor] = useState(() => new Date())
   const [dayIdx, setDayIdx] = useState(() => new Date().getDay())
+  const [showBacklog, setShowBacklog] = useState(false)
+  const [projFilter, setProjFilter] = useState<string[]>([])
+  const [userFilter, setUserFilter] = useState<string[]>([])
   const days = useMemo(() => weekDays(anchor), [anchor])
   const dayKeys = useMemo(() => days.map(toKey), [days])
 
   const projectById = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects])
   const userById = useMemo(() => new Map(users.map((u) => [u.id, u])), [users])
+
+  const filtered = useMemo(
+    () =>
+      tasks.filter(
+        (t) =>
+          (projFilter.length === 0 || projFilter.includes(t.projectId)) &&
+          (userFilter.length === 0 || t.assigneeIds.some((a) => userFilter.includes(a))),
+      ),
+    [tasks, projFilter, userFilter],
+  )
   const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks])
 
   const derived: Cols = useMemo(() => {
     const m: Cols = {}
-    for (const k of dayKeys) m[k] = tasksOfDay(tasks, k).map((t) => t.id)
+    m[BACKLOG] = backlogTasks(filtered).map((t) => t.id)
+    for (const k of dayKeys) m[k] = tasksOfDay(filtered, k).map((t) => t.id)
     return m
-  }, [tasks, dayKeys])
+  }, [filtered, dayKeys])
 
   // Durante el drag trabajamos sobre una copia local de las columnas
   const [cols, setCols] = useState<Cols | null>(null)
@@ -67,8 +85,6 @@ export default function Agenda({
   const view = cols ?? derived
   const activeTask = activeId ? taskById.get(activeId) : undefined
 
-  // Mouse: arrastra tras 6px de movimiento. Táctil: mantener apretado 250ms
-  // (así el scroll con el dedo no se confunde con un arrastre).
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
@@ -116,10 +132,11 @@ export default function Agenda({
       }
     }
     const changed: Task[] = []
-    for (const [dateKey, ids] of Object.entries(final)) {
+    for (const [key, ids] of Object.entries(final)) {
+      const fecha = dateOf(key)
       ids.forEach((id, i) => {
         const t = taskById.get(id)
-        if (t && (t.date !== dateKey || t.position !== i)) changed.push({ ...t, date: dateKey, position: i })
+        if (t && (t.date !== fecha || t.position !== i)) changed.push({ ...t, date: fecha, position: i })
       })
     }
     if (changed.length) upsertTasks(changed)
@@ -154,9 +171,14 @@ export default function Agenda({
   const navBtn =
     'grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
 
+  const filterOpts = {
+    proyectos: projects.map((p) => ({ id: p.id, label: p.name, color: p.color })),
+    personas: users.map((u) => ({ id: u.id, label: u.name, user: u })),
+  }
+
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 px-3 pt-3 pb-1 md:px-4">
+      <div className="flex flex-wrap items-center gap-2 px-3 pt-3 pb-1 md:px-4">
         <button onClick={() => setAnchor((d) => addWeeks(d, -1))} className={navBtn} title="Semana anterior">
           <ChevronLeft size={16} />
         </button>
@@ -167,15 +189,17 @@ export default function Agenda({
           onClick={() => {
             setAnchor(new Date())
             setDayIdx(new Date().getDay())
+            setShowBacklog(false)
           }}
           className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-extrabold text-slate-600 hover:bg-slate-50"
         >
           Hoy
         </button>
         <span className="ml-1 text-sm font-black text-slate-700 capitalize md:ml-2">{rangeLabel(days)}</span>
-        <span className="ml-auto hidden text-[11px] font-bold text-slate-400 md:block">
-          Arrastrá las tarjetas para cambiarlas de día o reordenar su prioridad
-        </span>
+        <div className="ml-auto flex items-center gap-2">
+          <MultiFilter label="Proyectos" options={filterOpts.proyectos} selected={projFilter} onChange={setProjFilter} />
+          <MultiFilter label="Personas" options={filterOpts.personas} selected={userFilter} onChange={setUserFilter} />
+        </div>
       </div>
 
       <DndContext
@@ -189,37 +213,61 @@ export default function Agenda({
         {isMobile ? (
           <>
             <div className="flex justify-between gap-1 px-3 pt-1.5 pb-2">
+              <BacklogChip
+                selected={showBacklog}
+                count={(view[BACKLOG] ?? []).length}
+                onSelect={() => setShowBacklog(true)}
+              />
               {days.map((d, i) => (
-                <DayChip key={toKey(d)} date={d} selected={i === dayIdx} onSelect={() => setDayIdx(i)} />
+                <DayChip
+                  key={toKey(d)}
+                  date={d}
+                  selected={!showBacklog && i === dayIdx}
+                  onSelect={() => {
+                    setShowBacklog(false)
+                    setDayIdx(i)
+                  }}
+                />
               ))}
             </div>
             <p className="px-3 pb-1.5 text-center text-[10px] font-bold text-slate-400">
-              Mantené apretada una tarjeta para arrastrarla; soltala sobre un día de arriba para moverla.
+              Mantené apretada una tarjeta y soltala sobre un día (o sobre 📥) para moverla.
             </p>
             <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
               <div className="flex min-h-full flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <DayColumn
-                  date={days[dayIdx]}
-                  ids={view[dayKeys[dayIdx]] ?? []}
-                  onAdd={() => onNew({ date: dayKeys[dayIdx] })}
-                >
-                  {cardsFor(dayKeys[dayIdx])}
-                </DayColumn>
+                {showBacklog ? (
+                  <BacklogPanel ids={view[BACKLOG] ?? []} onAdd={() => onNew({ date: null })} mobile>
+                    {cardsFor(BACKLOG)}
+                  </BacklogPanel>
+                ) : (
+                  <DayColumn
+                    date={days[dayIdx]}
+                    ids={view[dayKeys[dayIdx]] ?? []}
+                    onAdd={() => onNew({ date: dayKeys[dayIdx] })}
+                  >
+                    {cardsFor(dayKeys[dayIdx])}
+                  </DayColumn>
+                )}
               </div>
             </div>
           </>
         ) : (
           <div className="min-h-0 flex-1 px-4 pt-2 pb-4">
             <div className="h-full overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-              <div className="grid min-h-full min-w-[1080px] grid-cols-7">
-                {days.map((d) => {
-                  const key = toKey(d)
-                  return (
-                    <DayColumn key={key} date={d} ids={view[key] ?? []} onAdd={() => onNew({ date: key })}>
-                      {cardsFor(key)}
-                    </DayColumn>
-                  )
-                })}
+              <div className="flex min-h-full min-w-[1260px]">
+                <BacklogPanel ids={view[BACKLOG] ?? []} onAdd={() => onNew({ date: null })}>
+                  {cardsFor(BACKLOG)}
+                </BacklogPanel>
+                <div className="grid flex-1 grid-cols-7">
+                  {days.map((d) => {
+                    const key = toKey(d)
+                    return (
+                      <DayColumn key={key} date={d} ids={view[key] ?? []} onAdd={() => onNew({ date: key })}>
+                        {cardsFor(key)}
+                      </DayColumn>
+                    )
+                  })}
+                </div>
               </div>
             </div>
           </div>
@@ -236,6 +284,66 @@ export default function Agenda({
         </DragOverlay>
       </DndContext>
     </div>
+  )
+}
+
+/** Bandeja de tareas sin fecha: columna a la izquierda (o pantalla completa en celular). */
+function BacklogPanel({
+  ids,
+  onAdd,
+  children,
+  mobile,
+}: {
+  ids: string[]
+  onAdd: () => void
+  children: ReactNode
+  mobile?: boolean
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: BACKLOG })
+  return (
+    <div className={`group flex min-w-0 flex-col ${mobile ? 'flex-1' : 'w-60 shrink-0 border-r-2 border-slate-200'}`}>
+      <div className="sticky top-0 z-10 flex items-center gap-1.5 bg-slate-800 px-3 py-2.5">
+        <Inbox size={13} className="text-slate-300" />
+        <span className="text-[11px] font-extrabold tracking-[0.14em] text-white uppercase">Sin fecha</span>
+        <span className="ml-auto rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-extrabold text-slate-200">
+          {ids.length}
+        </span>
+      </div>
+      <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+        <div
+          ref={setNodeRef}
+          className={`flex-1 space-y-2 p-2 transition-colors ${isOver ? 'bg-blue-50/70' : 'bg-slate-50/60'}`}
+        >
+          {children}
+          <button
+            onClick={onAdd}
+            className="w-full rounded-lg border border-dashed border-slate-300 py-1.5 text-[11px] font-bold text-slate-400 transition hover:bg-white md:opacity-0 md:group-hover:opacity-100"
+          >
+            <Plus size={12} className="mr-0.5 inline" /> Agregar
+          </button>
+        </div>
+      </SortableContext>
+    </div>
+  )
+}
+
+function BacklogChip({ selected, count, onSelect }: { selected: boolean; count: number; onSelect: () => void }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `chip-${BACKLOG}` })
+  return (
+    <button
+      ref={setNodeRef}
+      onClick={onSelect}
+      className={`flex min-w-0 flex-1 flex-col items-center rounded-xl border py-1.5 transition ${
+        selected
+          ? 'border-slate-800 bg-slate-800 text-white shadow-sm'
+          : isOver
+            ? 'scale-105 border-blue-400 bg-blue-50 text-blue-700'
+            : 'border-slate-200 bg-white text-slate-500'
+      }`}
+    >
+      <Inbox size={12} className="mt-0.5" />
+      <span className="text-[10px] font-black">{count}</span>
+    </button>
   )
 }
 

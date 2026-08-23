@@ -14,7 +14,7 @@ interface Props {
 }
 
 export default function TaskEditor({ task, defaults, onClose }: Props) {
-  const { projects, users, tasks, currentUser, upsertTask, removeTask } = useApp()
+  const { projects, users, tasks, hitos, currentUser, upsertTask, removeTask } = useApp()
   const isNew = !task
 
   const [draft, setDraft] = useState<Task>(() =>
@@ -25,7 +25,8 @@ export default function TaskEditor({ task, defaults, onClose }: Props) {
           projectId: defaults?.projectId ?? projects[0]?.id ?? '',
           title: '',
           description: '',
-          date: defaults?.date ?? todayKey(),
+          date: defaults?.date !== undefined ? defaults.date : todayKey(),
+          hitoId: defaults?.hitoId ?? null,
           startTime: '',
           endTime: '',
           assigneeIds: defaults?.assigneeIds ?? (currentUser ? [currentUser.id] : []),
@@ -46,13 +47,15 @@ export default function TaskEditor({ task, defaults, onClose }: Props) {
       ...draft,
       title: draft.title.trim(),
       description: draft.description?.trim() || undefined,
+      date: draft.date || null,
+      hitoId: hitos.some((h) => h.id === draft.hitoId && h.projectId === draft.projectId) ? draft.hitoId : null,
       startTime: draft.startTime || undefined,
       endTime: draft.endTime || undefined,
       links: draft.links.filter((l) => l.url.trim()),
       checklist: draft.checklist.filter((c) => c.text.trim()),
     }
     if (isNew || task.date !== clean.date) {
-      const sameDay = tasks.filter((t) => t.date === clean.date && t.id !== clean.id)
+      const sameDay = tasks.filter((t) => (t.date ?? null) === clean.date && t.id !== clean.id)
       clean.position = sameDay.length ? Math.max(...sameDay.map((t) => t.position)) + 1 : 0
     }
     upsertTask(clean)
@@ -115,7 +118,12 @@ export default function TaskEditor({ task, defaults, onClose }: Props) {
 
           <div className="grid grid-cols-3 gap-2">
             <Field label="Fecha">
-              <input type="date" value={draft.date} onChange={(e) => set('date', e.target.value)} className={inputCls} />
+              <input
+                type="date"
+                value={draft.date ?? ''}
+                onChange={(e) => set('date', e.target.value || null)}
+                className={inputCls}
+              />
             </Field>
             <Field label="Inicio">
               <input type="time" value={draft.startTime ?? ''} onChange={(e) => set('startTime', e.target.value)} className={inputCls} />
@@ -124,6 +132,30 @@ export default function TaskEditor({ task, defaults, onClose }: Props) {
               <input type="time" value={draft.endTime ?? ''} onChange={(e) => set('endTime', e.target.value)} className={inputCls} />
             </Field>
           </div>
+          {!draft.date && (
+            <p className="-mt-2 text-[11px] font-semibold text-slate-400">
+              📥 Sin fecha: esta tarea va a la bandeja lateral de la Agenda.
+            </p>
+          )}
+
+          {hitos.some((h) => h.projectId === draft.projectId) && (
+            <Field label="Hito al que aporta">
+              <select
+                value={draft.hitoId ?? ''}
+                onChange={(e) => set('hitoId', e.target.value || null)}
+                className={inputCls}
+              >
+                <option value="">Sin hito</option>
+                {hitos
+                  .filter((h) => h.projectId === draft.projectId)
+                  .map((h) => (
+                    <option key={h.id} value={h.id}>
+                      {h.name}
+                    </option>
+                  ))}
+              </select>
+            </Field>
+          )}
 
           <Field label="Estado">
             <div className="grid grid-cols-3 gap-1 rounded-lg bg-slate-100 p-1">

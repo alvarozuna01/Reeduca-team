@@ -1,4 +1,4 @@
-import type { DB, Minute, Note, NoteFolder, Pin, Project, Task, User } from '../types'
+import type { DB, Hito, Minute, Note, NoteFolder, Pin, Project, Task, User } from '../types'
 import { seedDB } from './seed'
 import type { Api } from './api'
 
@@ -23,11 +23,12 @@ function normalize(db: DB): DB {
         match.urgent = st.urgent
         match.importance = st.importance
       }
-      if (!match && st.date > todayStr()) db.tasks.push(st)
+      if (!match && st.date && st.date > todayStr()) db.tasks.push(st)
     }
   }
   db.notes = db.notes.map((n) => ({ ...n, sharedWith: n.sharedWith ?? [] }))
   db.pins ??= []
+  db.hitos ??= []
   return db
 }
 
@@ -157,6 +158,19 @@ export const localApi: Api = {
   async deletePin(id: string) {
     const db = read()
     db.pins = db.pins.filter((p) => p.id !== id)
+    write(db)
+  },
+
+  async saveHito(h: Hito) {
+    const db = read()
+    db.hitos = upsert(db.hitos, h)
+    write(db)
+  },
+
+  async deleteHito(id: string) {
+    const db = read()
+    db.hitos = db.hitos.filter((h) => h.id !== id)
+    db.tasks = db.tasks.map((t) => (t.hitoId === id ? { ...t, hitoId: null } : t))
     write(db)
   },
 }

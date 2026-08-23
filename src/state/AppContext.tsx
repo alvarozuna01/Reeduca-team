@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import type { DB, Minute, Note, NoteFolder, Pin, Project, Task, User } from '../types'
+import type { DB, Hito, Minute, Note, NoteFolder, Pin, Project, Task, User } from '../types'
 import { api, isDemo } from '../lib/api'
 import { DB_KEY, demoSession } from '../lib/localApi'
 import { REALTIME_TABLES } from '../lib/supabaseApi'
@@ -18,6 +18,7 @@ interface AppCtx {
   noteFolders: NoteFolder[]
   minutes: Minute[]
   pins: Pin[]
+  hitos: Hito[]
   currentUser: User | null
   isAdmin: boolean
   loginDemo: (userId: string) => void
@@ -41,6 +42,8 @@ interface AppCtx {
   removeMinute: (id: string) => void
   upsertPin: (p: Pin) => void
   removePin: (id: string) => void
+  upsertHito: (h: Hito) => void
+  removeHito: (id: string) => void
 }
 
 const Ctx = createContext<AppCtx | null>(null)
@@ -60,6 +63,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     users: [],
     projects: [],
     tasks: [],
+    hitos: [],
     notes: [],
     noteFolders: [],
     minutes: [],
@@ -185,6 +189,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     noteFolders: db.noteFolders,
     minutes: db.minutes,
     pins: db.pins,
+    hitos: db.hitos,
     currentUser,
     isAdmin: currentUser?.role === 'admin',
 
@@ -257,6 +262,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ...d,
         projects: d.projects.filter((p) => p.id !== id),
         tasks: d.tasks.filter((t) => t.projectId !== id),
+        hitos: d.hitos.filter((h) => h.projectId !== id),
       }))
       api.deleteProject(id).catch(report)
     },
@@ -328,6 +334,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     removePin(id) {
       setDb((d) => ({ ...d, pins: d.pins.filter((p) => p.id !== id) }))
       api.deletePin(id).catch(report)
+    },
+
+    upsertHito(h) {
+      setDb((d) => ({ ...d, hitos: upsertIn(d.hitos, h) }))
+      api.saveHito(h).catch(report)
+    },
+
+    removeHito(id) {
+      setDb((d) => ({
+        ...d,
+        hitos: d.hitos.filter((h) => h.id !== id),
+        tasks: d.tasks.map((t) => (t.hitoId === id ? { ...t, hitoId: null } : t)),
+      }))
+      api.deleteHito(id).catch(report)
     },
   }
 

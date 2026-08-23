@@ -22,7 +22,7 @@ export const longDate = (d: Date) => format(d, "EEEE d 'de' MMMM", { locale: es 
 
 export const initials = (name: string) => name.trim().charAt(0).toUpperCase()
 
-export const isOverdue = (t: Task) => t.status !== 'done' && t.date < todayKey()
+export const isOverdue = (t: Task) => t.status !== 'done' && !!t.date && t.date < todayKey()
 
 export const STATUS_LABEL: Record<Status, string> = {
   todo: 'Por hacer',
@@ -112,7 +112,12 @@ export function upcomingWeeks(count: number, from: Date = new Date()): WeekInfo[
   return Array.from({ length: count }, (_, i) => weekInfo(addWeeks(from, i)))
 }
 
-export const taskInWeek = (t: Task, w: WeekInfo) => t.date >= w.start && t.date <= w.end
+export const taskInWeek = (t: Task, w: WeekInfo) => !!t.date && t.date >= w.start && t.date <= w.end
+
+/** Tareas sin fecha (bandeja), ordenadas por posición */
+export function backlogTasks(tasks: Task[]): Task[] {
+  return tasks.filter((t) => !t.date).sort((a, b) => a.position - b.position || a.title.localeCompare(b.title))
+}
 
 /** Color del semáforo según volumen de tareas pendientes de la semana */
 export function weekLoadColor(count: number): { color: string; label: string } {
