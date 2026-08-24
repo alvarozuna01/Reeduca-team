@@ -66,7 +66,12 @@ function Shell() {
         {view === 'hitos' && <Hitos onEditTask={(t) => setEditor({ task: t })} />}
         {view === 'minutas' && <Minutas onEditTask={(t) => setEditor({ task: t })} />}
         {view === 'cuaderno' && <Cuaderno openNoteId={noteToOpen} onNoteOpened={() => setNoteToOpen(null)} />}
-        {view === 'proyectos' && <Proyectos />}
+        {view === 'proyectos' && (
+          <Proyectos
+            onEditTask={(t) => setEditor({ task: t })}
+            onNewTask={(defaults) => setEditor({ defaults: { date: todayKey(), ...defaults } })}
+          />
+        )}
         {view === 'equipo' && <Equipo onEditTask={(t) => setEditor({ task: t })} />}
       </main>
       <BottomNav view={view} setView={setView} />
