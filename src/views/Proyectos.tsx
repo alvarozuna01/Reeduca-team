@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { CalendarDays, CheckCircle2, Inbox, Pencil, Plus, SquareKanban, Trash2 } from 'lucide-react'
+import { CalendarDays, CheckCircle2, Inbox, LayoutDashboard, Pencil, Plus, SquareKanban, Trash2 } from 'lucide-react'
 import type { Project, Task } from '../types'
-import { PROJECT_COLORS, isOverdue, uid } from '../lib/utils'
+import { PROJECT_COLORS, canEditTask, isOverdue, todayKey, uid } from '../lib/utils'
 import { useApp } from '../state/AppContext'
 import Modal, { Field, inputCls } from '../components/Modal'
-import { AvatarStack } from '../components/Avatar'
+import { Avatar, AvatarStack } from '../components/Avatar'
 import { ImportancePill, UrgentPill } from '../components/Stars'
 
 export default function Proyectos({
@@ -16,7 +16,7 @@ export default function Proyectos({
   onEditTask: (t: Task) => void
   onNewTask: (defaults: Partial<Task>) => void
 }) {
-  const { projects, tasks, removeProject } = useApp()
+  const { projects, tasks, isAdmin, removeProject } = useApp()
   const [editing, setEditing] = useState<Project | 'new' | null>(null)
   const [viewing, setViewing] = useState<Project | null>(null)
 
@@ -50,28 +50,30 @@ export default function Proyectos({
                 <div className="p-4">
                   <div className="flex items-start justify-between gap-2">
                     <p className="font-extrabold text-slate-700">{p.name}</p>
-                    <div className="flex gap-1">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setEditing(p)
-                        }}
-                        className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                        title="Editar"
-                      >
-                        <Pencil size={15} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          del(p)
-                        }}
-                        className="rounded-lg p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500"
-                        title="Eliminar"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
+                    {isAdmin && (
+                      <div className="flex gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setEditing(p)
+                          }}
+                          className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                          title="Editar"
+                        >
+                          <Pencil size={15} />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            del(p)
+                          }}
+                          className="rounded-lg p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500"
+                          title="Eliminar"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                   {p.description && <p className="mt-1 text-xs leading-snug text-slate-400">{p.description}</p>}
                   <p className="mt-3 text-[11px] font-bold text-slate-400">
@@ -88,14 +90,16 @@ export default function Proyectos({
             )
           })}
 
-          <button
-            onClick={() => setEditing('new')}
-            className="grid min-h-32 place-items-center rounded-xl border-2 border-dashed border-slate-200 text-slate-400 transition hover:border-blue-300 hover:text-blue-500"
-          >
-            <span className="flex items-center gap-1.5 text-sm font-extrabold">
-              <Plus size={16} /> Nuevo proyecto
-            </span>
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => setEditing('new')}
+              className="grid min-h-32 place-items-center rounded-xl border-2 border-dashed border-slate-200 text-slate-400 transition hover:border-blue-300 hover:text-blue-500"
+            >
+              <span className="flex items-center gap-1.5 text-sm font-extrabold">
+                <Plus size={16} /> Nuevo proyecto
+              </span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -125,8 +129,8 @@ function ProjectDetailModal({
   onEditTask: (t: Task) => void
   onNewTask: (defaults: Partial<Task>) => void
 }) {
-  const { tasks } = useApp()
-  const [mode, setMode] = useState<'agenda' | 'kanban'>('agenda')
+  const { tasks, hitos, users } = useApp()
+  const [mode, setMode] = useState<'resumen' | 'agenda' | 'kanban'>('resumen')
 
   const list = useMemo(
     () =>
@@ -136,6 +140,32 @@ function ProjectDetailModal({
     [tasks, project.id],
   )
   const done = list.filter((t) => t.status === 'done').length
+  const doing = list.filter((t) => t.status === 'doing').length
+  const overdueN = list.filter(isOverdue).length
+  const backlogN = list.filter((t) => !t.date).length
+  const pct = list.length ? Math.round((done / list.length) * 100) : 0
+  const projHitos = hitos.filter((h) => h.projectId === project.id)
+  const porPersona = useMemo(
+    () =>
+      users
+        .map((u) => {
+          const mine = list.filter((t) => t.assigneeIds.includes(u.id))
+          return {
+            u,
+            total: mine.length,
+            done: mine.filter((t) => t.status === 'done').length,
+            doing: mine.filter((t) => t.status === 'doing').length,
+            todo: mine.filter((t) => t.status === 'todo').length,
+          }
+        })
+        .filter((x) => x.total > 0)
+        .sort((a, b) => b.total - a.total),
+    [users, list],
+  )
+  const maxCarga = Math.max(1, ...porPersona.map((x) => x.total))
+  const proximas = list
+    .filter((t) => t.status !== 'done' && t.date && t.date >= todayKey())
+    .slice(0, 5)
 
   const grupos = useMemo(() => {
     const m = new Map<string, Task[]>()
@@ -163,7 +193,15 @@ function ProjectDetailModal({
           {list.length} tarea{list.length === 1 ? '' : 's'} · {done} completada{done === 1 ? '' : 's'}
         </span>
         <div className="ml-auto flex items-center gap-2">
-          <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1">
+          <div className="grid grid-cols-3 gap-1 rounded-lg bg-slate-100 p-1">
+            <button
+              onClick={() => setMode('resumen')}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-extrabold transition ${
+                mode === 'resumen' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <LayoutDashboard size={13} /> Resumen
+            </button>
             <button
               onClick={() => setMode('agenda')}
               className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-extrabold transition ${
@@ -196,7 +234,104 @@ function ProjectDetailModal({
         </p>
       )}
 
-      {mode === 'agenda' ? (
+      {mode === 'resumen' && list.length > 0 && (
+        <div className="space-y-5">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            {[
+              { label: 'Tareas', value: list.length, color: '#334155' },
+              { label: 'Completadas', value: done, color: '#34C48E' },
+              { label: 'En progreso', value: doing, color: '#5AB6E8' },
+              { label: 'Atrasadas', value: overdueN, color: '#e5484d' },
+              { label: 'Sin fecha', value: backlogN, color: '#94A3B8' },
+            ].map((s) => (
+              <div key={s.label} className="rounded-xl border border-slate-100 p-3">
+                <p className="text-xl font-black" style={{ color: s.color }}>
+                  {s.value}
+                </p>
+                <p className="text-[10px] font-extrabold tracking-wide text-slate-400 uppercase">{s.label}</p>
+              </div>
+            ))}
+          </div>
+
+          <div>
+            <div className="mb-1 flex items-center justify-between text-xs font-extrabold text-slate-500">
+              <span>Avance general</span>
+              <span>{pct}%</span>
+            </div>
+            <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: project.color }} />
+            </div>
+          </div>
+
+          {projHitos.length > 0 && (
+            <div>
+              <p className="mb-2 text-[11px] font-extrabold tracking-wide text-slate-400 uppercase">Avance por hito</p>
+              <div className="space-y-2.5">
+                {projHitos.map((h) => {
+                  const linked = list.filter((t) => t.hitoId === h.id)
+                  const dH = linked.filter((t) => t.status === 'done').length
+                  const pctH = linked.length ? Math.round((dH / linked.length) * 100) : 0
+                  return (
+                    <div key={h.id}>
+                      <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+                        <span className="truncate font-bold text-slate-600">🚩 {h.name}</span>
+                        <span className="font-extrabold whitespace-nowrap text-slate-400">
+                          {dH}/{linked.length} · {pctH}%
+                        </span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                        <div className="h-full rounded-full" style={{ width: `${pctH}%`, background: project.color }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {porPersona.length > 0 && (
+            <div>
+              <p className="mb-2 text-[11px] font-extrabold tracking-wide text-slate-400 uppercase">
+                Carga por persona
+              </p>
+              <div className="space-y-2">
+                {porPersona.map(({ u, total, done: d, doing: g, todo }) => (
+                  <div key={u.id} className="flex items-center gap-2.5">
+                    <div className="flex w-32 shrink-0 items-center gap-1.5">
+                      <Avatar user={u} size={22} />
+                      <span className="truncate text-xs font-bold text-slate-600">{u.name}</span>
+                    </div>
+                    <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                      <div className="flex h-full" style={{ width: `${(total / maxCarga) * 100}%` }}>
+                        {d > 0 && <div style={{ flex: d, background: '#34C48E' }} />}
+                        {g > 0 && <div style={{ flex: g, background: '#5AB6E8' }} />}
+                        {todo > 0 && <div style={{ flex: todo, background: '#CBD5E1' }} />}
+                      </div>
+                    </div>
+                    <span className="w-16 shrink-0 text-right text-[10px] font-bold text-slate-400">
+                      {d}/{total} ✓
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {proximas.length > 0 && (
+            <div>
+              <p className="mb-1.5 text-[11px] font-extrabold tracking-wide text-slate-400 uppercase">
+                Próximas entregas
+              </p>
+              <div className="divide-y divide-slate-50 rounded-xl border border-slate-100">
+                {proximas.map((t) => (
+                  <TaskRow key={t.id} task={t} onEdit={() => onEditTask(t)} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      {mode === 'agenda' && (
         <div className="space-y-4">
           {grupos.map(([fecha, ts]) => (
             <div key={fecha}>
@@ -218,7 +353,9 @@ function ProjectDetailModal({
             </div>
           ))}
         </div>
-      ) : (
+      )}
+
+      {mode === 'kanban' && (
         <div className="grid gap-3 md:grid-cols-3">
           {COLS.map((col) => {
             const colTasks = list.filter((t) => t.status === col.status)
@@ -249,14 +386,16 @@ function ProjectDetailModal({
 }
 
 function TaskRow({ task, onEdit }: { task: Task; onEdit: () => void }) {
-  const { users, upsertTask } = useApp()
+  const { users, currentUser, isAdmin, upsertTask } = useApp()
   const done = task.status === 'done'
+  const editable = canEditTask(task, currentUser?.id, isAdmin)
   return (
     <div className="flex items-center gap-2.5 px-3 py-2 transition hover:bg-slate-50">
       <button
+        disabled={!editable}
         onClick={() => upsertTask({ ...task, status: done ? 'todo' : 'done' })}
-        title={done ? 'Marcar pendiente' : 'Marcar completada'}
-        className={done ? 'text-emerald-500' : 'text-slate-300 hover:text-emerald-400'}
+        title={!editable ? 'Solo sus responsables o un Gerente' : done ? 'Marcar pendiente' : 'Marcar completada'}
+        className={`${done ? 'text-emerald-500' : 'text-slate-300 hover:text-emerald-400'} disabled:cursor-not-allowed disabled:opacity-40`}
       >
         <CheckCircle2 size={17} className={done ? 'fill-emerald-100' : ''} />
       </button>

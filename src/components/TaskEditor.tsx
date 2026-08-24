@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Flame, Plus, Trash2, X } from 'lucide-react'
+import { Flame, Lock, Plus, Trash2, X } from 'lucide-react'
 import type { Status, Task } from '../types'
-import { STATUS_LABEL, textOn, todayKey, uid } from '../lib/utils'
+import { STATUS_LABEL, canEditTask, textOn, todayKey, uid } from '../lib/utils'
 import { useApp } from '../state/AppContext'
 import { Avatar } from './Avatar'
 import { Field, inputCls } from './Modal'
@@ -14,8 +14,9 @@ interface Props {
 }
 
 export default function TaskEditor({ task, defaults, onClose }: Props) {
-  const { projects, users, tasks, hitos, currentUser, upsertTask, removeTask } = useApp()
+  const { projects, users, tasks, hitos, currentUser, isAdmin, upsertTask, removeTask } = useApp()
   const isNew = !task
+  const readOnly = !isNew && !canEditTask(task, currentUser?.id, isAdmin)
 
   const [draft, setDraft] = useState<Task>(() =>
     task
@@ -75,13 +76,25 @@ export default function TaskEditor({ task, defaults, onClose }: Props) {
       <div className="absolute top-0 right-0 flex h-full w-full max-w-md animate-[slidein_0.18s_ease-out] flex-col bg-white shadow-2xl">
         <div className="h-1.5 w-full" style={{ background: project?.color ?? '#cbd5e1' }} />
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
-          <h3 className="font-extrabold text-slate-800">{isNew ? 'Nueva tarea' : 'Editar tarea'}</h3>
+          <h3 className="font-extrabold text-slate-800">
+            {isNew ? 'Nueva tarea' : readOnly ? 'Ver tarea' : 'Editar tarea'}
+          </h3>
           <button onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
             <X size={18} />
           </button>
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+          {readOnly && (
+            <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+              <Lock size={15} className="mt-0.5 shrink-0 text-amber-500" />
+              <p className="text-xs font-semibold text-amber-700">
+                Solo lectura: esta tarea no te tiene como responsable. Pueden modificarla sus responsables o un
+                Gerente.
+              </p>
+            </div>
+          )}
+          <fieldset disabled={readOnly} className="contents">
           <Field label="Título">
             <input
               autoFocus={isNew}
@@ -322,28 +335,46 @@ export default function TaskEditor({ task, defaults, onClose }: Props) {
               </button>
             </div>
           </Field>
+          </fieldset>
         </div>
 
         <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
-          {!isNew ? (
-            <button onClick={del} className="rounded-lg px-3 py-2 text-sm font-bold text-red-500 hover:bg-red-50">
-              Eliminar
-            </button>
+          {readOnly ? (
+            <>
+              <span />
+              <button
+                onClick={onClose}
+                className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-extrabold text-slate-600 hover:bg-slate-200"
+              >
+                Cerrar
+              </button>
+            </>
           ) : (
-            <span />
+            <>
+              {!isNew ? (
+                <button onClick={del} className="rounded-lg px-3 py-2 text-sm font-bold text-red-500 hover:bg-red-50">
+                  Eliminar
+                </button>
+              ) : (
+                <span />
+              )}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={onClose}
+                  className="rounded-lg px-3 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={save}
+                  disabled={!draft.title.trim() || !draft.projectId}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-extrabold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Guardar
+                </button>
+              </div>
+            </>
           )}
-          <div className="flex items-center gap-2">
-            <button onClick={onClose} className="rounded-lg px-3 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100">
-              Cancelar
-            </button>
-            <button
-              onClick={save}
-              disabled={!draft.title.trim() || !draft.projectId}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-extrabold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Guardar
-            </button>
-          </div>
         </div>
       </div>
     </div>

@@ -64,9 +64,10 @@ export default function TaskCard({ task, project, assignees, onOpen, onToggleChe
                   <input
                     type="checkbox"
                     checked={c.done}
+                    disabled={!onToggleCheck}
                     onChange={() => onToggleCheck?.(c.id)}
                     onClick={(e) => e.stopPropagation()}
-                    className="mt-0.5 size-3 accent-emerald-500"
+                    className="mt-0.5 size-3 accent-emerald-500 disabled:opacity-50"
                   />
                   <span
                     className={`text-[11px] leading-snug text-slate-600 ${c.done ? 'line-through opacity-60' : ''}`}

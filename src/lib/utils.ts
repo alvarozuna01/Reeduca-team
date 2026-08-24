@@ -24,6 +24,17 @@ export const initials = (name: string) => name.trim().charAt(0).toUpperCase()
 
 export const isOverdue = (t: Task) => t.status !== 'done' && !!t.date && t.date < todayKey()
 
+/**
+ * ¿Puede esta persona modificar la tarea? Los Gerentes siempre; el resto,
+ * solo si está asignada (o si la tarea no tiene responsables todavía).
+ * Evita ediciones accidentales de tareas ajenas.
+ */
+export function canEditTask(t: Task, userId: string | undefined, isAdmin: boolean): boolean {
+  if (isAdmin) return true
+  if (!userId) return false
+  return t.assigneeIds.length === 0 || t.assigneeIds.includes(userId)
+}
+
 export const STATUS_LABEL: Record<Status, string> = {
   todo: 'Por hacer',
   doing: 'En progreso',

@@ -3,13 +3,13 @@ import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { CheckCircle2, ChevronRight, Flag, Link2, Pencil, Plus, Trash2, X } from 'lucide-react'
 import type { Hito, Task } from '../types'
-import { textOn, todayKey, uid } from '../lib/utils'
+import { canEditTask, textOn, todayKey, uid } from '../lib/utils'
 import { useApp } from '../state/AppContext'
 import { AvatarStack } from '../components/Avatar'
 import Modal, { Field, inputCls } from '../components/Modal'
 
 export default function Hitos({ onEditTask }: { onEditTask: (t: Task) => void }) {
-  const { hitos, projects, tasks, users, upsertTask, removeHito } = useApp()
+  const { hitos, projects, tasks, users, currentUser, isAdmin, upsertTask, removeHito } = useApp()
   const [editing, setEditing] = useState<Hito | 'new' | null>(null)
   const [linking, setLinking] = useState<Hito | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -146,14 +146,22 @@ export default function Hitos({ onEditTask }: { onEditTask: (t: Task) => void })
                             <div className="divide-y divide-slate-100">
                               {linked.map((t) => {
                                 const doneT = t.status === 'done'
+                                const editable = canEditTask(t, currentUser?.id, isAdmin)
                                 return (
                                   <div key={t.id} className="group flex items-center gap-2.5 py-1.5">
                                     <button
+                                      disabled={!editable}
                                       onClick={() =>
                                         upsertTask({ ...t, status: doneT ? 'todo' : 'done' })
                                       }
-                                      title={doneT ? 'Marcar pendiente' : 'Marcar completada'}
-                                      className={doneT ? 'text-emerald-500' : 'text-slate-300 hover:text-emerald-400'}
+                                      title={
+                                        !editable
+                                          ? 'Solo sus responsables o un Gerente'
+                                          : doneT
+                                            ? 'Marcar pendiente'
+                                            : 'Marcar completada'
+                                      }
+                                      className={`${doneT ? 'text-emerald-500' : 'text-slate-300 hover:text-emerald-400'} disabled:cursor-not-allowed disabled:opacity-40`}
                                     >
                                       <CheckCircle2 size={17} className={doneT ? 'fill-emerald-100' : ''} />
                                     </button>
@@ -168,13 +176,15 @@ export default function Hitos({ onEditTask }: { onEditTask: (t: Task) => void })
                                       {t.date ? format(parseISO(t.date), 'd MMM', { locale: es }) : '📥'}
                                     </span>
                                     <AvatarStack users={users.filter((u) => t.assigneeIds.includes(u.id))} size={17} />
-                                    <button
-                                      onClick={() => upsertTask({ ...t, hitoId: null })}
-                                      title="Desvincular del hito"
-                                      className="rounded p-1 text-slate-300 transition hover:bg-red-50 hover:text-red-500 md:opacity-0 md:group-hover:opacity-100"
-                                    >
-                                      <X size={13} />
-                                    </button>
+                                    {editable && (
+                                      <button
+                                        onClick={() => upsertTask({ ...t, hitoId: null })}
+                                        title="Desvincular del hito"
+                                        className="rounded p-1 text-slate-300 transition hover:bg-red-50 hover:text-red-500 md:opacity-0 md:group-hover:opacity-100"
+                                      >
+                                        <X size={13} />
+                                      </button>
+                                    )}
                                   </div>
                                 )
                               })}
@@ -265,7 +275,7 @@ function HitoModal({ hito, onClose }: { hito: Hito | null; onClose: () => void }
 
 /** Vincular tareas existentes del proyecto a un hito (clic para vincular/desvincular). */
 function LinkModal({ hito, onClose }: { hito: Hito; onClose: () => void }) {
-  const { tasks, upsertTask } = useApp()
+  const { tasks, currentUser, isAdmin, upsertTask } = useApp()
   const [q, setQ] = useState('')
   const candidates = tasks
     .filter((t) => t.projectId === hito.projectId)
@@ -289,11 +299,14 @@ function LinkModal({ hito, onClose }: { hito: Hito; onClose: () => void }) {
           {candidates.map((t) => {
             const linked = t.hitoId === hito.id
             const otro = !!t.hitoId && !linked
+            const editable = canEditTask(t, currentUser?.id, isAdmin)
             return (
               <button
                 key={t.id}
+                disabled={!editable}
+                title={editable ? undefined : 'Solo sus responsables o un Gerente pueden vincularla'}
                 onClick={() => upsertTask({ ...t, hitoId: linked ? null : hito.id })}
-                className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition ${
+                className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-40 ${
                   linked ? 'border-blue-300 bg-blue-50' : 'border-slate-100 hover:border-slate-200'
                 }`}
               >

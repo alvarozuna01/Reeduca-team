@@ -20,7 +20,7 @@ import { addWeeks, format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, Inbox, Plus } from 'lucide-react'
 import type { Task } from '../types'
-import { backlogTasks, dayName, rangeLabel, tasksOfDay, toKey, todayKey, weekDays } from '../lib/utils'
+import { backlogTasks, canEditTask, dayName, rangeLabel, tasksOfDay, toKey, todayKey, weekDays } from '../lib/utils'
 import { useIsMobile } from '../lib/useIsMobile'
 import { useApp } from '../state/AppContext'
 import TaskCard from '../components/TaskCard'
@@ -48,7 +48,7 @@ export default function Agenda({
   onEdit: (t: Task) => void
   onNew: (defaults: Partial<Task>) => void
 }) {
-  const { tasks, projects, users, upsertTask, upsertTasks } = useApp()
+  const { tasks, projects, users, currentUser, isAdmin, upsertTask, upsertTasks } = useApp()
   const isMobile = useIsMobile()
   const [anchor, setAnchor] = useState(() => new Date())
   const [dayIdx, setDayIdx] = useState(() => new Date().getDay())
@@ -155,14 +155,15 @@ export default function Agenda({
     (view[key] ?? []).map((id) => {
       const t = taskById.get(id)
       if (!t) return null
+      const editable = canEditTask(t, currentUser?.id, isAdmin)
       return (
-        <SortableCard key={id} task={t}>
+        <SortableCard key={id} task={t} disabled={!editable}>
           <TaskCard
             task={t}
             project={projectById.get(t.projectId)}
             assignees={t.assigneeIds.map((aid) => userById.get(aid)!).filter(Boolean)}
             onOpen={() => onEdit(t)}
-            onToggleCheck={(itemId) => toggleCheck(t, itemId)}
+            onToggleCheck={editable ? (itemId) => toggleCheck(t, itemId) : undefined}
           />
         </SortableCard>
       )
@@ -418,8 +419,11 @@ function DayColumn({
   )
 }
 
-function SortableCard({ task, children }: { task: Task; children: ReactNode }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id })
+function SortableCard({ task, children, disabled }: { task: Task; children: ReactNode; disabled?: boolean }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: task.id,
+    disabled,
+  })
   return (
     <div
       ref={setNodeRef}

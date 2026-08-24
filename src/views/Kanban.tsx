@@ -17,7 +17,7 @@ import {
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import type { Project, Status, Task, User } from '../types'
-import { isOverdue, taskInWeek, upcomingWeeks, weekInfo, weekLoadColor } from '../lib/utils'
+import { canEditTask, isOverdue, taskInWeek, todayKey, upcomingWeeks, weekInfo, weekLoadColor } from '../lib/utils'
 import { addWeeks } from 'date-fns'
 import { useApp } from '../state/AppContext'
 import { AvatarStack } from '../components/Avatar'
@@ -39,10 +39,11 @@ const selCls =
   'rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 focus:border-blue-400 focus:outline-none'
 
 export default function Kanban({ onEdit }: { onEdit: (t: Task) => void }) {
-  const { tasks, projects, users, upsertTask } = useApp()
+  const { tasks, projects, users, currentUser, isAdmin, upsertTask } = useApp()
   const [projectFilter, setProjectFilter] = useState<string[]>([])
   const [userFilter, setUserFilter] = useState<string[]>([])
   const [weekFilter, setWeekFilter] = useState('') // clave del domingo de la semana, '' = todas
+  const [timeFilter, setTimeFilter] = useState('') // '' | atrasadas | pasadas | futuras | sinfecha
   const [activeId, setActiveId] = useState<string | null>(null)
 
   const projectById = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects])
@@ -62,15 +63,31 @@ export default function Kanban({ onEdit }: { onEdit: (t: Task) => void }) {
 
   const filtered = useMemo(() => {
     const week = weekFilter ? weekOptions.find((w) => w.start === weekFilter) : undefined
+    const hoy = todayKey()
+    const matchTime = (t: (typeof tasks)[number]) => {
+      switch (timeFilter) {
+        case 'atrasadas':
+          return isOverdue(t)
+        case 'pasadas':
+          return !!t.date && t.date < hoy
+        case 'futuras':
+          return !!t.date && t.date >= hoy
+        case 'sinfecha':
+          return !t.date
+        default:
+          return true
+      }
+    }
     return tasks
       .filter(
         (t) =>
           (projectFilter.length === 0 || projectFilter.includes(t.projectId)) &&
           (userFilter.length === 0 || t.assigneeIds.some((a) => userFilter.includes(a))) &&
-          (!week || taskInWeek(t, week)),
+          (!week || taskInWeek(t, week)) &&
+          matchTime(t),
       )
       .sort((a, b) => (a.date ?? '9999-99').localeCompare(b.date ?? '9999-99') || a.position - b.position)
-  }, [tasks, projectFilter, userFilter, weekFilter, weekOptions])
+  }, [tasks, projectFilter, userFilter, weekFilter, timeFilter, weekOptions])
 
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) : undefined
   const sensors = useSensors(
@@ -111,6 +128,13 @@ export default function Kanban({ onEdit }: { onEdit: (t: Task) => void }) {
                 {w.label}
               </option>
             ))}
+          </select>
+          <select value={timeFilter} onChange={(e) => setTimeFilter(e.target.value)} className={selCls}>
+            <option value="">Todas las fechas</option>
+            <option value="atrasadas">🔥 Atrasadas</option>
+            <option value="pasadas">⏪ Pasadas</option>
+            <option value="futuras">⏩ Futuras (desde hoy)</option>
+            <option value="sinfecha">📥 Sin fecha</option>
           </select>
           <MultiFilter
             label="Personas"
@@ -163,7 +187,7 @@ export default function Kanban({ onEdit }: { onEdit: (t: Task) => void }) {
               return (
                 <Column key={col.status} status={col.status} label={col.label} dot={col.dot} count={colTasks.length}>
                   {colTasks.map((t) => (
-                    <DraggableCard key={t.id} id={t.id}>
+                    <DraggableCard key={t.id} id={t.id} disabled={!canEditTask(t, currentUser?.id, isAdmin)}>
                       <KanbanCard
                         task={t}
                         project={projectById.get(t.projectId)}
@@ -221,8 +245,16 @@ function Column({
   )
 }
 
-function DraggableCard({ id, children }: { id: string; children: React.ReactNode }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id })
+function DraggableCard({
+  id,
+  children,
+  disabled,
+}: {
+  id: string
+  children: React.ReactNode
+  disabled?: boolean
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id, disabled })
   return (
     <div
       ref={setNodeRef}
