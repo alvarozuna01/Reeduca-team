@@ -19,10 +19,11 @@ import { es } from 'date-fns/locale'
 import type { Project, Status, Task, User } from '../types'
 import { canEditTask, isOverdue, taskInWeek, todayKey, upcomingWeeks, weekInfo, weekLoadColor } from '../lib/utils'
 import { addWeeks } from 'date-fns'
+import { usePref } from '../lib/usePref'
 import { useApp } from '../state/AppContext'
 import { AvatarStack } from '../components/Avatar'
 import { ImportancePill, UrgentPill } from '../components/Stars'
-import MultiFilter from '../components/MultiFilter'
+import MultiFilter, { HideToggle } from '../components/MultiFilter'
 
 const COLS: { status: Status; label: string; dot: string }[] = [
   { status: 'todo', label: 'Por hacer', dot: '#94A3B8' },
@@ -44,6 +45,8 @@ export default function Kanban({ onEdit }: { onEdit: (t: Task) => void }) {
   const [userFilter, setUserFilter] = useState<string[]>([])
   const [weekFilter, setWeekFilter] = useState('') // clave del domingo de la semana, '' = todas
   const [timeFilter, setTimeFilter] = useState('') // '' | atrasadas | pasadas | futuras | sinfecha
+  const [hideDone, setHideDone] = usePref('kanban-ocultar-completadas', false)
+  const [hideBacklog, setHideBacklog] = usePref('kanban-ocultar-sinfecha', false)
   const [activeId, setActiveId] = useState<string | null>(null)
 
   const projectById = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects])
@@ -84,10 +87,12 @@ export default function Kanban({ onEdit }: { onEdit: (t: Task) => void }) {
           (projectFilter.length === 0 || projectFilter.includes(t.projectId)) &&
           (userFilter.length === 0 || t.assigneeIds.some((a) => userFilter.includes(a))) &&
           (!week || taskInWeek(t, week)) &&
+          (!hideDone || t.status !== 'done') &&
+          (!hideBacklog || !!t.date) &&
           matchTime(t),
       )
       .sort((a, b) => (a.date ?? '9999-99').localeCompare(b.date ?? '9999-99') || a.position - b.position)
-  }, [tasks, projectFilter, userFilter, weekFilter, timeFilter, weekOptions])
+  }, [tasks, projectFilter, userFilter, weekFilter, timeFilter, hideDone, hideBacklog, weekOptions])
 
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) : undefined
   const sensors = useSensors(
@@ -142,6 +147,8 @@ export default function Kanban({ onEdit }: { onEdit: (t: Task) => void }) {
             selected={userFilter}
             onChange={setUserFilter}
           />
+          <HideToggle hidden={hideDone} onChange={setHideDone} label="Completadas" />
+          <HideToggle hidden={hideBacklog} onChange={setHideBacklog} label="Sin fecha" />
         </div>
       </div>
 
@@ -181,8 +188,12 @@ export default function Kanban({ onEdit }: { onEdit: (t: Task) => void }) {
           onDragEnd={onDragEnd}
           onDragCancel={() => setActiveId(null)}
         >
-          <div className="grid grid-cols-1 gap-3 md:h-full md:min-w-[760px] md:grid-cols-3">
-            {COLS.map((col) => {
+          <div
+            className={`grid grid-cols-1 gap-3 md:h-full ${
+              hideDone ? 'md:min-w-[520px] md:grid-cols-2' : 'md:min-w-[760px] md:grid-cols-3'
+            }`}
+          >
+            {COLS.filter((c) => !hideDone || c.status !== 'done').map((col) => {
               const colTasks = filtered.filter((t) => t.status === col.status)
               return (
                 <Column key={col.status} status={col.status} label={col.label} dot={col.dot} count={colTasks.length}>

@@ -1,7 +1,33 @@
 import { useState } from 'react'
-import { Check, ChevronDown, X } from 'lucide-react'
+import { Check, ChevronDown, Eye, EyeOff, X } from 'lucide-react'
 import type { User } from '../types'
 import { Avatar } from './Avatar'
+
+/** Botón "ojito" para ocultar/mostrar un grupo de tareas (completadas, sin fecha…). */
+export function HideToggle({
+  hidden,
+  onChange,
+  label,
+}: {
+  hidden: boolean
+  onChange: (v: boolean) => void
+  label: string
+}) {
+  return (
+    <button
+      onClick={() => onChange(!hidden)}
+      title={hidden ? `Mostrar ${label.toLowerCase()}` : `Ocultar ${label.toLowerCase()}`}
+      className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition ${
+        hidden
+          ? 'border-slate-300 bg-slate-200 text-slate-500'
+          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+      }`}
+    >
+      {hidden ? <EyeOff size={13} /> : <Eye size={13} />}
+      <span className={hidden ? 'line-through' : ''}>{label}</span>
+    </button>
+  )
+}
 
 export interface FilterOption {
   id: string

@@ -22,9 +22,10 @@ import { ChevronLeft, ChevronRight, Inbox, Plus } from 'lucide-react'
 import type { Task } from '../types'
 import { backlogTasks, canEditTask, dayName, rangeLabel, tasksOfDay, toKey, todayKey, weekDays } from '../lib/utils'
 import { useIsMobile } from '../lib/useIsMobile'
+import { usePref } from '../lib/usePref'
 import { useApp } from '../state/AppContext'
 import TaskCard from '../components/TaskCard'
-import MultiFilter from '../components/MultiFilter'
+import MultiFilter, { HideToggle } from '../components/MultiFilter'
 
 type Cols = Record<string, string[]>
 
@@ -55,6 +56,8 @@ export default function Agenda({
   const [showBacklog, setShowBacklog] = useState(false)
   const [projFilter, setProjFilter] = useState<string[]>([])
   const [userFilter, setUserFilter] = useState<string[]>([])
+  const [hideDone, setHideDone] = usePref('agenda-ocultar-completadas', false)
+  const [hideBacklog, setHideBacklog] = usePref('agenda-ocultar-sinfecha', false)
   const days = useMemo(() => weekDays(anchor), [anchor])
   const dayKeys = useMemo(() => days.map(toKey), [days])
 
@@ -66,9 +69,10 @@ export default function Agenda({
       tasks.filter(
         (t) =>
           (projFilter.length === 0 || projFilter.includes(t.projectId)) &&
-          (userFilter.length === 0 || t.assigneeIds.some((a) => userFilter.includes(a))),
+          (userFilter.length === 0 || t.assigneeIds.some((a) => userFilter.includes(a))) &&
+          (!hideDone || t.status !== 'done'),
       ),
-    [tasks, projFilter, userFilter],
+    [tasks, projFilter, userFilter, hideDone],
   )
   const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks])
 
@@ -197,9 +201,11 @@ export default function Agenda({
           Hoy
         </button>
         <span className="ml-1 text-sm font-black text-slate-700 capitalize md:ml-2">{rangeLabel(days)}</span>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           <MultiFilter label="Proyectos" options={filterOpts.proyectos} selected={projFilter} onChange={setProjFilter} />
           <MultiFilter label="Personas" options={filterOpts.personas} selected={userFilter} onChange={setUserFilter} />
+          <HideToggle hidden={hideDone} onChange={setHideDone} label="Completadas" />
+          <HideToggle hidden={hideBacklog} onChange={setHideBacklog} label="Sin fecha" />
         </div>
       </div>
 
@@ -214,11 +220,13 @@ export default function Agenda({
         {isMobile ? (
           <>
             <div className="flex justify-between gap-1 px-3 pt-1.5 pb-2">
-              <BacklogChip
-                selected={showBacklog}
-                count={(view[BACKLOG] ?? []).length}
-                onSelect={() => setShowBacklog(true)}
-              />
+              {!hideBacklog && (
+                <BacklogChip
+                  selected={showBacklog}
+                  count={(view[BACKLOG] ?? []).length}
+                  onSelect={() => setShowBacklog(true)}
+                />
+              )}
               {days.map((d, i) => (
                 <DayChip
                   key={toKey(d)}
@@ -236,7 +244,7 @@ export default function Agenda({
             </p>
             <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
               <div className="flex min-h-full flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                {showBacklog ? (
+                {showBacklog && !hideBacklog ? (
                   <BacklogPanel ids={view[BACKLOG] ?? []} onAdd={() => onNew({ date: null })} mobile>
                     {cardsFor(BACKLOG)}
                   </BacklogPanel>
@@ -255,10 +263,12 @@ export default function Agenda({
         ) : (
           <div className="min-h-0 flex-1 px-4 pt-2 pb-4">
             <div className="h-full overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-              <div className="flex min-h-full min-w-[1260px]">
-                <BacklogPanel ids={view[BACKLOG] ?? []} onAdd={() => onNew({ date: null })}>
-                  {cardsFor(BACKLOG)}
-                </BacklogPanel>
+              <div className={`flex min-h-full ${hideBacklog ? 'min-w-[1080px]' : 'min-w-[1260px]'}`}>
+                {!hideBacklog && (
+                  <BacklogPanel ids={view[BACKLOG] ?? []} onAdd={() => onNew({ date: null })}>
+                    {cardsFor(BACKLOG)}
+                  </BacklogPanel>
+                )}
                 <div className="grid flex-1 grid-cols-7">
                   {days.map((d) => {
                     const key = toKey(d)
