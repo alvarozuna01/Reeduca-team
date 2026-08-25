@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Task } from './types'
+import { FEATURE_KICKOFF, type Task } from './types'
 import { todayKey } from './lib/utils'
 import { AppProvider, useApp } from './state/AppContext'
 import TopBar, { BottomNav, type View } from './components/TopBar'
@@ -10,6 +10,7 @@ import Agenda from './views/Agenda'
 import Kanban from './views/Kanban'
 import Hitos from './views/Hitos'
 import Minutas from './views/Minutas'
+import Kickoff from './views/Kickoff'
 import Cuaderno from './views/Cuaderno'
 import Proyectos from './views/Proyectos'
 import Equipo from './views/Equipo'
@@ -28,10 +29,13 @@ interface EditorState {
 }
 
 function Shell() {
-  const { loading, currentUser } = useApp()
-  const [view, setView] = useState<View>('midia')
+  const { loading, currentUser, hasFlag } = useApp()
+  const [rawView, setView] = useState<View>('midia')
   const [editor, setEditor] = useState<EditorState | null>(null)
   const [noteToOpen, setNoteToOpen] = useState<string | null>(null)
+
+  // Si la llave del Kickoff está apagada, esa pestaña no existe: se muestra Mi Día.
+  const view: View = rawView === 'kickoff' && !hasFlag(FEATURE_KICKOFF) ? 'midia' : rawView
 
   if (loading) {
     return (
@@ -65,6 +69,7 @@ function Shell() {
         {view === 'kanban' && <Kanban onEdit={(t) => setEditor({ task: t })} />}
         {view === 'hitos' && <Hitos onEditTask={(t) => setEditor({ task: t })} />}
         {view === 'minutas' && <Minutas onEditTask={(t) => setEditor({ task: t })} />}
+        {view === 'kickoff' && <Kickoff />}
         {view === 'cuaderno' && <Cuaderno openNoteId={noteToOpen} onNoteOpened={() => setNoteToOpen(null)} />}
         {view === 'proyectos' && (
           <Proyectos

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Pencil, Plus, Star, Trash2 } from 'lucide-react'
-import type { Role, Task, User } from '../types'
+import { Pencil, Plus, Rocket, Star, Trash2 } from 'lucide-react'
+import { FEATURE_KICKOFF, type Role, type Task, type User } from '../types'
 import { STATUS_LABEL, USER_COLORS, isOverdue, uid } from '../lib/utils'
 import { useApp } from '../state/AppContext'
 import { Avatar, AvatarStack } from '../components/Avatar'
@@ -8,8 +8,19 @@ import Modal, { Field, inputCls } from '../components/Modal'
 import { Stars, UrgentPill } from '../components/Stars'
 
 export default function Equipo({ onEditTask }: { onEditTask: (t: Task) => void }) {
-  const { users, projects, tasks, isAdmin, currentUser, removeUser, demo } = useApp()
+  const { users, projects, tasks, isAdmin, currentUser, removeUser, demo, featureFlags, upsertFeatureFlag, hasFlag } = useApp()
   const [editing, setEditing] = useState<User | 'new' | null>(null)
+
+  // Acceso anticipado al Kickoff: prende/apaga la llave para una persona.
+  const toggleKickoffBeta = (u: User) => {
+    const row = featureFlags.find((f) => f.flag === FEATURE_KICKOFF && f.userId === u.id)
+    upsertFeatureFlag({
+      id: row?.id ?? uid(),
+      flag: FEATURE_KICKOFF,
+      userId: u.id,
+      enabled: !hasFlag(FEATURE_KICKOFF, u.id),
+    })
+  }
 
   const stats = useMemo(
     () => ({
@@ -221,6 +232,23 @@ export default function Equipo({ onEditTask }: { onEditTask: (t: Task) => void }
                   >
                     {u.role === 'admin' ? 'Gerente' : 'Equipo'}
                   </span>
+                  {hasFlag(FEATURE_KICKOFF) && (
+                    <button
+                      onClick={() => toggleKickoffBeta(u)}
+                      title={
+                        u.id === currentUser?.id
+                          ? 'Ojo: si te la apagás a vos mismo, la recuperás corriendo de nuevo el SQL de la llave.'
+                          : 'Acceso anticipado al Kickoff semanal (beta)'
+                      }
+                      className={`mt-1 ml-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold transition ${
+                        hasFlag(FEATURE_KICKOFF, u.id)
+                          ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                          : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                      }`}
+                    >
+                      <Rocket size={11} /> Beta {hasFlag(FEATURE_KICKOFF, u.id) ? 'ON' : 'OFF'}
+                    </button>
+                  )}
                 </div>
                 <div className="flex flex-col gap-1">
                   <button

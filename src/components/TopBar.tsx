@@ -7,24 +7,27 @@ import {
   LogOut,
   NotebookPen,
   Plus,
+  Rocket,
   SquareKanban,
   Sunrise,
   UserRound,
   Users,
 } from 'lucide-react'
+import { FEATURE_KICKOFF } from '../types'
 import { useApp } from '../state/AppContext'
 import { USER_COLORS } from '../lib/utils'
 import { Avatar } from './Avatar'
 import Modal, { Field, inputCls } from './Modal'
 
-export type View = 'midia' | 'agenda' | 'kanban' | 'hitos' | 'minutas' | 'cuaderno' | 'proyectos' | 'equipo'
+export type View = 'midia' | 'agenda' | 'kanban' | 'hitos' | 'minutas' | 'kickoff' | 'cuaderno' | 'proyectos' | 'equipo'
 
-const TABS: { id: View; label: string; icon: typeof CalendarDays; adminOnly?: boolean }[] = [
+const TABS: { id: View; label: string; icon: typeof CalendarDays; adminOnly?: boolean; feature?: string }[] = [
   { id: 'midia', label: 'Mi Día', icon: Sunrise },
   { id: 'agenda', label: 'Agenda', icon: CalendarDays },
   { id: 'kanban', label: 'Kanban', icon: SquareKanban },
   { id: 'hitos', label: 'Hitos', icon: Flag },
   { id: 'minutas', label: 'Minutas', icon: ClipboardList },
+  { id: 'kickoff', label: 'Kickoff', icon: Rocket, feature: FEATURE_KICKOFF },
   { id: 'cuaderno', label: 'Cuaderno', icon: NotebookPen },
   { id: 'proyectos', label: 'Proyectos', icon: FolderOpen },
   { id: 'equipo', label: 'Equipo', icon: Users, adminOnly: true },
@@ -39,7 +42,7 @@ export default function TopBar({
   setView: (v: View) => void
   onNew: () => void
 }) {
-  const { currentUser, isAdmin, logout, demo } = useApp()
+  const { currentUser, isAdmin, hasFlag, logout, demo } = useApp()
   const [menuOpen, setMenuOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
 
@@ -55,7 +58,7 @@ export default function TopBar({
       </div>
 
       <nav className="mx-auto hidden items-center gap-1 md:flex">
-        {TABS.filter((t) => !t.adminOnly || isAdmin).map((t) => (
+        {TABS.filter((t) => (!t.adminOnly || isAdmin) && (!t.feature || hasFlag(t.feature))).map((t) => (
           <button
             key={t.id}
             onClick={() => setView(t.id)}
@@ -127,10 +130,10 @@ export default function TopBar({
 
 /** Navegación inferior para celulares (en pantallas grandes se usa la barra superior). */
 export function BottomNav({ view, setView }: { view: View; setView: (v: View) => void }) {
-  const { isAdmin } = useApp()
+  const { isAdmin, hasFlag } = useApp()
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-slate-200 bg-white/95 pt-1 pb-[max(0.4rem,env(safe-area-inset-bottom))] backdrop-blur md:hidden">
-      {TABS.filter((t) => !t.adminOnly || isAdmin).map((t) => (
+      {TABS.filter((t) => (!t.adminOnly || isAdmin) && (!t.feature || hasFlag(t.feature))).map((t) => (
         <button
           key={t.id}
           onClick={() => setView(t.id)}

@@ -1,5 +1,5 @@
-import type { DB, Hito, Minute, Note, NoteFolder, Pin, Project, Task, User } from '../types'
-import { seedDB } from './seed'
+import type { DB, FeatureFlag, Hito, Minute, Note, NoteFolder, Pin, Project, Task, User } from '../types'
+import { seedDB, seedFeatureFlags } from './seed'
 import type { Api } from './api'
 
 export const DB_KEY = 'reeduca-db-v1'
@@ -29,6 +29,7 @@ function normalize(db: DB): DB {
   db.notes = db.notes.map((n) => ({ ...n, sharedWith: n.sharedWith ?? [] }))
   db.pins ??= []
   db.hitos ??= []
+  db.featureFlags ??= seedFeatureFlags()
   return db
 }
 
@@ -171,6 +172,20 @@ export const localApi: Api = {
     const db = read()
     db.hitos = db.hitos.filter((h) => h.id !== id)
     db.tasks = db.tasks.map((t) => (t.hitoId === id ? { ...t, hitoId: null } : t))
+    write(db)
+  },
+
+  async saveFeatureFlag(f: FeatureFlag) {
+    const db = read()
+    // Igual que en Supabase: una sola fila por (flag, userId).
+    const existing = db.featureFlags.find((x) => x.flag === f.flag && x.userId === f.userId)
+    db.featureFlags = upsert(db.featureFlags, existing ? { ...f, id: existing.id } : f)
+    write(db)
+  },
+
+  async deleteFeatureFlag(id: string) {
+    const db = read()
+    db.featureFlags = db.featureFlags.filter((f) => f.id !== id)
     write(db)
   },
 }

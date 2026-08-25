@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import type { DB, Hito, Minute, Note, NoteFolder, Pin, Project, Task, User } from '../types'
+import type { DB, FeatureFlag, Hito, Minute, Note, NoteFolder, Pin, Project, Task, User } from '../types'
 import { api, isDemo } from '../lib/api'
 import { DB_KEY, demoSession } from '../lib/localApi'
 import { REALTIME_TABLES } from '../lib/supabaseApi'
@@ -19,8 +19,11 @@ interface AppCtx {
   minutes: Minute[]
   pins: Pin[]
   hitos: Hito[]
+  featureFlags: FeatureFlag[]
   currentUser: User | null
   isAdmin: boolean
+  /** ¿Está prendida esta llave para el usuario dado (o el actual)? La fila por-usuario gana sobre la global. */
+  hasFlag: (flag: string, userId?: string) => boolean
   loginDemo: (userId: string) => void
   loginEmail: (email: string, password: string) => Promise<string | null>
   signUpEmail: (name: string, email: string, password: string) => Promise<string | null>
@@ -44,6 +47,8 @@ interface AppCtx {
   removePin: (id: string) => void
   upsertHito: (h: Hito) => void
   removeHito: (id: string) => void
+  upsertFeatureFlag: (f: FeatureFlag) => void
+  removeFeatureFlag: (id: string) => void
 }
 
 const Ctx = createContext<AppCtx | null>(null)
@@ -68,6 +73,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     noteFolders: [],
     minutes: [],
     pins: [],
+    featureFlags: [],
   })
   const [loading, setLoading] = useState(true)
   const [sessionId, setSessionId] = useState<string | null>(() => (isDemo ? demoSession.get() : null))
@@ -190,8 +196,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     minutes: db.minutes,
     pins: db.pins,
     hitos: db.hitos,
+    featureFlags: db.featureFlags,
     currentUser,
     isAdmin: currentUser?.role === 'admin',
+
+    hasFlag(flag, userId) {
+      const target = userId ?? currentUser?.id
+      if (!target) return false
+      const own = db.featureFlags.find((f) => f.flag === flag && f.userId === target)
+      if (own) return own.enabled
+      return db.featureFlags.find((f) => f.flag === flag && f.userId === null)?.enabled ?? false
+    },
 
     loginDemo(userId) {
       demoSession.set(userId)
@@ -348,6 +363,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
         tasks: d.tasks.map((t) => (t.hitoId === id ? { ...t, hitoId: null } : t)),
       }))
       api.deleteHito(id).catch(report)
+    },
+
+    upsertFeatureFlag(f) {
+      // Una sola fila por (flag, userId): si ya existe con otro id, se actualiza esa.
+      const existing = db.featureFlags.find((x) => x.flag === f.flag && x.userId === f.userId)
+      const item = existing ? { ...f, id: existing.id } : f
+      setDb((d) => ({ ...d, featureFlags: upsertIn(d.featureFlags, item) }))
+      api.saveFeatureFlag(item).catch(report)
+    },
+
+    removeFeatureFlag(id) {
+      setDb((d) => ({ ...d, featureFlags: d.featureFlags.filter((f) => f.id !== id) }))
+      api.deleteFeatureFlag(id).catch(report)
     },
   }
 

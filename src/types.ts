@@ -105,6 +105,22 @@ export interface Minute {
   actions: MinuteAction[]
 }
 
+/* ---- Llaves de funciones (feature flags) ---- */
+
+/**
+ * Permite prender funciones nuevas por usuario antes de mostrarlas a todo
+ * el equipo. Una fila con userId = null es el valor global; una fila con
+ * userId gana sobre la global para esa persona.
+ */
+export interface FeatureFlag {
+  id: string
+  flag: string
+  userId: string | null
+  enabled: boolean
+}
+
+export const FEATURE_KICKOFF = 'FEATURE_KICKOFF'
+
 export interface DB {
   users: User[]
   projects: Project[]
@@ -114,4 +130,5 @@ export interface DB {
   noteFolders: NoteFolder[]
   minutes: Minute[]
   pins: Pin[]
+  featureFlags: FeatureFlag[]
 }

@@ -1,6 +1,11 @@
 import { addDays } from 'date-fns'
-import type { DB, Hito, Minute, Note, NoteFolder, Pin, Task } from '../types'
+import { FEATURE_KICKOFF, type DB, type FeatureFlag, type Hito, type Minute, type Note, type NoteFolder, type Pin, type Task } from '../types'
 import { toKey, uid, weekDays } from './utils'
+
+/** En el modo demo la llave del Kickoff arranca prendida para el admin de ejemplo. */
+export const seedFeatureFlags = (): FeatureFlag[] => [
+  { id: 'ff-kickoff-demo', flag: FEATURE_KICKOFF, userId: 'u-alvaro', enabled: true },
+]
 
 /**
  * Datos de ejemplo del modo demo, inspirados en la agenda real de ReEduca.
@@ -160,5 +165,5 @@ export function seedDB(): DB {
     },
   ]
 
-  return { users, projects, tasks, hitos, notes, noteFolders, minutes, pins }
+  return { users, projects, tasks, hitos, notes, noteFolders, minutes, pins, featureFlags: seedFeatureFlags() }
 }
