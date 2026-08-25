@@ -43,6 +43,23 @@ export default function TaskEditor({ task, defaults, onClose }: Props) {
   const set = <K extends keyof Task>(key: K, value: Task[K]) => setDraft((d) => ({ ...d, [key]: value }))
   const project = projects.find((p) => p.id === draft.projectId)
 
+  // Rescate de enlaces: si pegaron la URL en "Nombre", la usamos igual;
+  // y si falta el https://, lo agregamos.
+  const esUrl = (s: string) => /^https?:\/\//i.test(s) || (!s.includes(' ') && /^[\w-]+(\.[\w-]+)+(\/\S*)?$/i.test(s))
+  const conProtocolo = (s: string) => (/^https?:\/\//i.test(s) ? s : 'https://' + s)
+  const limpiarEnlaces = () =>
+    draft.links
+      .map((l) => {
+        let url = l.url.trim()
+        let label = l.label.trim()
+        if (!url && esUrl(label)) {
+          url = label
+          label = 'Abrir enlace'
+        }
+        return { ...l, label: label || 'Abrir enlace', url: url ? conProtocolo(url) : '' }
+      })
+      .filter((l) => l.url)
+
   const save = () => {
     const clean: Task = {
       ...draft,
@@ -52,7 +69,7 @@ export default function TaskEditor({ task, defaults, onClose }: Props) {
       hitoId: hitos.some((h) => h.id === draft.hitoId && h.projectId === draft.projectId) ? draft.hitoId : null,
       startTime: draft.startTime || undefined,
       endTime: draft.endTime || undefined,
-      links: draft.links.filter((l) => l.url.trim()),
+      links: limpiarEnlaces(),
       checklist: draft.checklist.filter((c) => c.text.trim()),
     }
     if (isNew || task.date !== clean.date) {
@@ -298,6 +315,16 @@ export default function TaskEditor({ task, defaults, onClose }: Props) {
               {draft.links.map((l, i) => (
                 <div key={l.id} className="flex items-center gap-2">
                   <input
+                    value={l.url}
+                    onChange={(e) => {
+                      const list = [...draft.links]
+                      list[i] = { ...l, url: e.target.value }
+                      set('links', list)
+                    }}
+                    placeholder="Pegá el enlace acá (https://…)"
+                    className={inputCls}
+                  />
+                  <input
                     value={l.label}
                     onChange={(e) => {
                       const list = [...draft.links]
@@ -305,17 +332,7 @@ export default function TaskEditor({ task, defaults, onClose }: Props) {
                       set('links', list)
                     }}
                     placeholder="Nombre"
-                    className={`${inputCls} w-32 shrink-0`}
-                  />
-                  <input
-                    value={l.url}
-                    onChange={(e) => {
-                      const list = [...draft.links]
-                      list[i] = { ...l, url: e.target.value }
-                      set('links', list)
-                    }}
-                    placeholder="https://…"
-                    className={inputCls}
+                    className={`${inputCls} w-28 shrink-0`}
                   />
                   <button
                     type="button"

@@ -58,6 +58,27 @@ function upsertIn<T extends { id: string }>(list: T[], item: T): T[] {
 
 const report = (e: unknown) => console.error('[ReEduca] Error guardando datos:', e)
 
+// Campos "pesados" que Postgres puede omitir en los avisos de tiempo real
+// cuando no cambiaron (columnas grandes): si faltan en el aviso, conservamos
+// el valor local en vez de pisarlo con un vacío.
+const CAMPOS_PESADOS: Record<string, [string, string][]> = {
+  tasks: [
+    ['links', 'links'],
+    ['checklist', 'checklist'],
+    ['description', 'description'],
+    ['assignee_ids', 'assigneeIds'],
+  ],
+  notes: [
+    ['content', 'content'],
+    ['shared_with', 'sharedWith'],
+  ],
+  minutes: [
+    ['actions', 'actions'],
+    ['summary', 'summary'],
+    ['participant_ids', 'participantIds'],
+  ],
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [db, setDb] = useState<DB>({
     users: [],
@@ -163,9 +184,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
               if (!id) return d
               return { ...d, [key]: (d[key] as { id: string }[]).filter((x) => x.id !== id) }
             }
-            const item = map(payload.new)
+            const raw = payload.new as Record<string, unknown>
+            const item = map(raw) as { id: string } & Record<string, unknown>
+            const lista = d[key] as unknown as ({ id: string } & Record<string, unknown>)[]
+            const prev = lista.find((x) => x.id === item.id)
+            if (prev) {
+              for (const [rawKey, entKey] of CAMPOS_PESADOS[table] ?? []) {
+                if (raw[rawKey] === undefined) item[entKey] = prev[entKey]
+              }
+            }
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            return { ...d, [key]: upsertIn(d[key] as any[], item) }
+            return { ...d, [key]: upsertIn(lista as any[], item) }
           })
         },
       )
