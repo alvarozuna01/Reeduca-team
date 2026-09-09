@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FEATURE_KICKOFF, type Task } from './types'
+import { FEATURE_KICKOFF, FEATURE_PANEL, type Task } from './types'
 import { todayKey } from './lib/utils'
 import { AppProvider, useApp } from './state/AppContext'
 import TopBar, { BottomNav, type View } from './components/TopBar'
@@ -13,6 +13,7 @@ import Minutas from './views/Minutas'
 import Kickoff from './views/Kickoff'
 import Cuaderno from './views/Cuaderno'
 import Proyectos from './views/Proyectos'
+import Panel from './views/Panel'
 import Equipo from './views/Equipo'
 
 export default function App() {
@@ -29,13 +30,17 @@ interface EditorState {
 }
 
 function Shell() {
-  const { loading, currentUser, hasFlag } = useApp()
+  const { loading, currentUser, isAdmin, hasFlag } = useApp()
   const [rawView, setView] = useState<View>('midia')
   const [editor, setEditor] = useState<EditorState | null>(null)
   const [noteToOpen, setNoteToOpen] = useState<string | null>(null)
 
-  // Si la llave del Kickoff está apagada, esa pestaña no existe: se muestra Mi Día.
-  const view: View = rawView === 'kickoff' && !hasFlag(FEATURE_KICKOFF) ? 'midia' : rawView
+  // Pestañas detrás de llave: si la llave está apagada, se muestra Mi Día.
+  const view: View =
+    (rawView === 'kickoff' && !hasFlag(FEATURE_KICKOFF)) ||
+    (rawView === 'panel' && !(hasFlag(FEATURE_PANEL) && isAdmin))
+      ? 'midia'
+      : rawView
 
   if (loading) {
     return (
@@ -77,6 +82,7 @@ function Shell() {
             onNewTask={(defaults) => setEditor({ defaults: { date: todayKey(), ...defaults } })}
           />
         )}
+        {view === 'panel' && <Panel onEditTask={(t) => setEditor({ task: t })} />}
         {view === 'equipo' && <Equipo onEditTask={(t) => setEditor({ task: t })} />}
       </main>
       <BottomNav view={view} setView={setView} />

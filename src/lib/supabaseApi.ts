@@ -21,6 +21,9 @@ const rowToTask = (r: any): Task => ({
   links: r.links ?? [],
   urgent: r.urgent ?? false,
   importance: r.importance ?? 0,
+  completedAt: r.completed_at ?? null,
+  necesitaDecisionGg: r.necesita_decision_gg ?? false,
+  necesitaDecisionDesde: r.necesita_decision_desde ?? null,
 })
 
 const taskToRow = (t: Task) => ({
@@ -39,7 +42,22 @@ const taskToRow = (t: Task) => ({
   links: t.links,
   urgent: t.urgent,
   importance: t.importance,
+  completed_at: t.completedAt ?? null,
+  necesita_decision_gg: t.necesitaDecisionGg ?? false,
+  necesita_decision_desde: t.necesitaDecisionDesde ?? null,
 })
+
+/**
+ * Columnas de tasks agregadas por la migración del Panel PM. Si la base
+ * todavía no la corrió, el guardado reintenta sin ellas (la app degrada
+ * al comportamiento anterior en vez de romper).
+ */
+const COLUMNAS_NUEVAS_TASKS = ['completed_at', 'necesita_decision_gg', 'necesita_decision_desde'] as const
+
+function sinColumnasNuevas(row: ReturnType<typeof taskToRow>) {
+  const { completed_at: _c, necesita_decision_gg: _g, necesita_decision_desde: _d, ...rest } = row
+  return rest
+}
 
 /* ---- Notas, carpetas y minutas ---- */
 
@@ -263,12 +281,22 @@ export const supabaseApi: Api = {
   },
 
   async saveTask(t) {
-    check((await supabase!.from('tasks').upsert(taskToRow(t))).error)
+    const { error } = await supabase!.from('tasks').upsert(taskToRow(t))
+    if (error && COLUMNAS_NUEVAS_TASKS.some((c) => error.message.includes(c))) {
+      check((await supabase!.from('tasks').upsert(sinColumnasNuevas(taskToRow(t)))).error)
+      return
+    }
+    check(error)
   },
 
   async saveTasks(ts) {
     if (!ts.length) return
-    check((await supabase!.from('tasks').upsert(ts.map(taskToRow))).error)
+    const { error } = await supabase!.from('tasks').upsert(ts.map(taskToRow))
+    if (error && COLUMNAS_NUEVAS_TASKS.some((c) => error.message.includes(c))) {
+      check((await supabase!.from('tasks').upsert(ts.map((t) => sinColumnasNuevas(taskToRow(t))))).error)
+      return
+    }
+    check(error)
   },
 
   async deleteTask(id) {

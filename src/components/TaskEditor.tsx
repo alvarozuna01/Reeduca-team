@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Flame, Lock, Plus, Trash2, X } from 'lucide-react'
-import { FEATURE_COMENTARIOS, type Status, type Task } from '../types'
+import { Flame, Lock, Plus, Scale, Trash2, X } from 'lucide-react'
+import { FEATURE_COMENTARIOS, FEATURE_PANEL, type Status, type Task } from '../types'
 import { STATUS_LABEL, canEditTask, textOn, todayKey, uid } from '../lib/utils'
 import { useApp } from '../state/AppContext'
 import { Avatar } from './Avatar'
@@ -231,6 +231,35 @@ export default function TaskEditor({ task, defaults, onClose }: Props) {
               <StarRating value={draft.importance} onChange={(v) => set('importance', v)} />
             </Field>
           </div>
+
+          {hasFlag(FEATURE_PANEL) && (
+            <Field label="¿Necesita una decisión del Gerente?">
+              <button
+                type="button"
+                onClick={() => set('necesitaDecisionGg', !draft.necesitaDecisionGg)}
+                className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-sm font-extrabold transition ${
+                  draft.necesitaDecisionGg
+                    ? 'border-blue-300 bg-blue-50 text-blue-700'
+                    : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300'
+                }`}
+              >
+                <Scale size={16} />
+                {draft.necesitaDecisionGg ? 'Esperando decisión del Gerente' : 'No necesita decisión'}
+                <span
+                  className={`ml-auto flex h-5 w-9 items-center rounded-full p-0.5 transition ${
+                    draft.necesitaDecisionGg ? 'justify-end bg-blue-600' : 'justify-start bg-slate-200'
+                  }`}
+                >
+                  <span className="size-4 rounded-full bg-white shadow-sm" />
+                </span>
+              </button>
+              {draft.necesitaDecisionGg && (
+                <p className="mt-1 text-[11px] font-semibold text-slate-400">
+                  Entra a la cola de decisiones del Panel del Gerente. Al destildarla, sale.
+                </p>
+              )}
+            </Field>
+          )}
 
           <Field label="Responsables">
             <div className="flex flex-wrap gap-1.5">

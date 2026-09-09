@@ -4,6 +4,7 @@ import {
   ClipboardList,
   Flag,
   FolderOpen,
+  LayoutDashboard,
   LogOut,
   NotebookPen,
   Plus,
@@ -13,15 +14,20 @@ import {
   UserRound,
   Users,
 } from 'lucide-react'
-import { FEATURE_KICKOFF } from '../types'
+import { FEATURE_KICKOFF, FEATURE_PANEL } from '../types'
 import { useApp } from '../state/AppContext'
 import { USER_COLORS } from '../lib/utils'
 import { Avatar } from './Avatar'
 import Modal, { Field, inputCls } from './Modal'
 
-export type View = 'midia' | 'agenda' | 'kanban' | 'hitos' | 'minutas' | 'kickoff' | 'cuaderno' | 'proyectos' | 'equipo'
+export type View = 'midia' | 'agenda' | 'kanban' | 'hitos' | 'minutas' | 'kickoff' | 'cuaderno' | 'proyectos' | 'panel' | 'equipo'
 
-const TABS: { id: View; label: string; icon: typeof CalendarDays; adminOnly?: boolean; feature?: string }[] = [
+/**
+ * `feature`: la pestaña solo aparece con esa llave prendida.
+ * `hideWithFeature`: la pestaña se oculta cuando esa llave está prendida
+ * (el Panel PM reemplaza a Equipo en el menú; Equipo vive dentro del Panel).
+ */
+const TABS: { id: View; label: string; icon: typeof CalendarDays; adminOnly?: boolean; feature?: string; hideWithFeature?: string }[] = [
   { id: 'midia', label: 'Mi Día', icon: Sunrise },
   { id: 'agenda', label: 'Agenda', icon: CalendarDays },
   { id: 'kanban', label: 'Kanban', icon: SquareKanban },
@@ -30,7 +36,8 @@ const TABS: { id: View; label: string; icon: typeof CalendarDays; adminOnly?: bo
   { id: 'kickoff', label: 'Kickoff', icon: Rocket, feature: FEATURE_KICKOFF },
   { id: 'cuaderno', label: 'Cuaderno', icon: NotebookPen },
   { id: 'proyectos', label: 'Proyectos', icon: FolderOpen },
-  { id: 'equipo', label: 'Equipo', icon: Users, adminOnly: true },
+  { id: 'panel', label: 'Panel', icon: LayoutDashboard, adminOnly: true, feature: FEATURE_PANEL },
+  { id: 'equipo', label: 'Equipo', icon: Users, adminOnly: true, hideWithFeature: FEATURE_PANEL },
 ]
 
 export default function TopBar({
@@ -58,7 +65,12 @@ export default function TopBar({
       </div>
 
       <nav className="mx-auto hidden items-center gap-1 md:flex">
-        {TABS.filter((t) => (!t.adminOnly || isAdmin) && (!t.feature || hasFlag(t.feature))).map((t) => (
+        {TABS.filter(
+          (t) =>
+            (!t.adminOnly || isAdmin) &&
+            (!t.feature || hasFlag(t.feature)) &&
+            (!t.hideWithFeature || !hasFlag(t.hideWithFeature)),
+        ).map((t) => (
           <button
             key={t.id}
             onClick={() => setView(t.id)}
@@ -133,7 +145,12 @@ export function BottomNav({ view, setView }: { view: View; setView: (v: View) =>
   const { isAdmin, hasFlag } = useApp()
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-slate-200 bg-white/95 pt-1 pb-[max(0.4rem,env(safe-area-inset-bottom))] backdrop-blur md:hidden">
-      {TABS.filter((t) => (!t.adminOnly || isAdmin) && (!t.feature || hasFlag(t.feature))).map((t) => (
+      {TABS.filter(
+        (t) =>
+          (!t.adminOnly || isAdmin) &&
+          (!t.feature || hasFlag(t.feature)) &&
+          (!t.hideWithFeature || !hasFlag(t.hideWithFeature)),
+      ).map((t) => (
         <button
           key={t.id}
           onClick={() => setView(t.id)}

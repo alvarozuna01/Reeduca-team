@@ -25,6 +25,8 @@ interface AppCtx {
   isAdmin: boolean
   /** ¿Está prendida esta llave para el usuario dado (o el actual)? La fila por-usuario gana sobre la global. */
   hasFlag: (flag: string, userId?: string) => boolean
+  /** Vuelve a traer todo de la base (botón "Actualizar" del Panel). */
+  reload: () => void
   loginDemo: (userId: string) => void
   loginEmail: (email: string, password: string) => Promise<string | null>
   signUpEmail: (name: string, email: string, password: string) => Promise<string | null>
@@ -65,6 +67,27 @@ function upsertIn<T extends { id: string }>(list: T[], item: T): T[] {
 }
 
 const report = (e: unknown) => console.error('[ReEduca] Error guardando datos:', e)
+
+/**
+ * Estampa automática de fechas al guardar una tarea, comparando contra su
+ * versión anterior: cuándo se completó y desde cuándo espera una decisión
+ * del Gerente. Centralizado acá para cubrir todos los caminos (editor,
+ * checkboxes, drag del Kanban) sin tocar cada vista.
+ */
+function conEstampas(prev: Task | undefined, t: Task): Task {
+  let out = t
+  if (t.status === 'done' && prev?.status !== 'done' && !t.completedAt) {
+    out = { ...out, completedAt: new Date().toISOString() }
+  } else if (t.status !== 'done' && t.completedAt) {
+    out = { ...out, completedAt: null }
+  }
+  if (t.necesitaDecisionGg && !prev?.necesitaDecisionGg && !t.necesitaDecisionDesde) {
+    out = { ...out, necesitaDecisionDesde: new Date().toISOString() }
+  } else if (!t.necesitaDecisionGg && t.necesitaDecisionDesde) {
+    out = { ...out, necesitaDecisionDesde: null }
+  }
+  return out
+}
 
 // Campos "pesados" que Postgres puede omitir en los avisos de tiempo real
 // cuando no cambiaron (columnas grandes): si faltan en el aviso, conservamos
@@ -242,6 +265,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return db.featureFlags.find((f) => f.flag === flag && f.userId === null)?.enabled ?? false
     },
 
+    reload() {
+      api.load().then(setDb).catch(report)
+    },
+
     loginDemo(userId) {
       demoSession.set(userId)
       setSessionId(userId)
@@ -283,17 +310,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
 
     upsertTask(t) {
-      setDb((d) => ({ ...d, tasks: upsertIn(d.tasks, t) }))
-      api.saveTask(t).catch(report)
+      const final = conEstampas(db.tasks.find((x) => x.id === t.id), t)
+      setDb((d) => ({ ...d, tasks: upsertIn(d.tasks, final) }))
+      api.saveTask(final).catch(report)
     },
 
     upsertTasks(ts) {
+      const finales = ts.map((t) => conEstampas(db.tasks.find((x) => x.id === t.id), t))
       setDb((d) => {
         let tasks = d.tasks
-        for (const t of ts) tasks = upsertIn(tasks, t)
+        for (const t of finales) tasks = upsertIn(tasks, t)
         return { ...d, tasks }
       })
-      api.saveTasks(ts).catch(report)
+      api.saveTasks(finales).catch(report)
     },
 
     removeTask(id) {

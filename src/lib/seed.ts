@@ -1,14 +1,15 @@
 import { addDays } from 'date-fns'
-import { FEATURE_COMENTARIOS, FEATURE_KICKOFF, type DB, type FeatureFlag, type Hito, type Minute, type Note, type NoteFolder, type Pin, type Task, type TaskComment } from '../types'
+import { FEATURE_COMENTARIOS, FEATURE_KICKOFF, FEATURE_PANEL, type DB, type FeatureFlag, type Hito, type Minute, type Note, type NoteFolder, type Pin, type Task, type TaskComment } from '../types'
 import { toKey, uid, weekDays } from './utils'
 
 /**
- * En el modo demo la llave del Kickoff arranca prendida para el admin de
- * ejemplo, y la de comentarios para todo el equipo (fila global).
+ * En el modo demo las llaves del Kickoff y del Panel arrancan prendidas
+ * para el admin de ejemplo, y la de comentarios para todo el equipo.
  */
 export const seedFeatureFlags = (): FeatureFlag[] => [
   { id: 'ff-kickoff-demo', flag: FEATURE_KICKOFF, userId: 'u-alvaro', enabled: true },
   { id: 'ff-comentarios-demo', flag: FEATURE_COMENTARIOS, userId: null, enabled: true },
+  { id: 'ff-panel-demo', flag: FEATURE_PANEL, userId: 'u-alvaro', enabled: true },
 ]
 
 /**
@@ -171,6 +172,21 @@ export function seedDB(): DB {
       ],
     },
   ]
+
+  // Datos de ejemplo para el Panel PM: fecha de completado en las tareas
+  // hechas, y dos tareas esperando una decisión del Gerente.
+  for (const t of tasks) {
+    if (t.status === 'done') t.completedAt = new Date(Date.now() - Math.floor(Math.random() * 4 + 1) * 24 * 60 * 60 * 1000).toISOString()
+  }
+  const marcarDecision = (titulo: string, diasEsperando: number) => {
+    const t = tasks.find((x) => x.title === titulo)
+    if (t) {
+      t.necesitaDecisionGg = true
+      t.necesitaDecisionDesde = new Date(Date.now() - diasEsperando * 24 * 60 * 60 * 1000).toISOString()
+    }
+  }
+  marcarDecision('Definición de criterios de certificación MEC', 4)
+  marcarDecision('Cierre contable de agosto', 1)
 
   const taskComments: TaskComment[] = [
     {

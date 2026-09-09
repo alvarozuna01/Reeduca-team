@@ -8,19 +8,7 @@ import Modal, { Field, inputCls } from '../components/Modal'
 import { Stars, UrgentPill } from '../components/Stars'
 
 export default function Equipo({ onEditTask }: { onEditTask: (t: Task) => void }) {
-  const { users, projects, tasks, isAdmin, currentUser, removeUser, demo, featureFlags, upsertFeatureFlag, hasFlag } = useApp()
-  const [editing, setEditing] = useState<User | 'new' | null>(null)
-
-  // Acceso anticipado al Kickoff: prende/apaga la llave para una persona.
-  const toggleKickoffBeta = (u: User) => {
-    const row = featureFlags.find((f) => f.flag === FEATURE_KICKOFF && f.userId === u.id)
-    upsertFeatureFlag({
-      id: row?.id ?? uid(),
-      flag: FEATURE_KICKOFF,
-      userId: u.id,
-      enabled: !hasFlag(FEATURE_KICKOFF, u.id),
-    })
-  }
+  const { users, projects, tasks, isAdmin } = useApp()
 
   const stats = useMemo(
     () => ({
@@ -82,11 +70,6 @@ export default function Equipo({ onEditTask }: { onEditTask: (t: Task) => void }
         </div>
       </div>
     )
-  }
-
-  const del = (u: User) => {
-    if (u.id === currentUser?.id) return
-    if (confirm(`¿Eliminar a ${u.name}? Sus tareas quedarán sin asignar.`)) removeUser(u.id)
   }
 
   return (
@@ -202,79 +185,110 @@ export default function Equipo({ onEditTask }: { onEditTask: (t: Task) => void }
           </section>
         </div>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="font-extrabold text-slate-700">Miembros del equipo</h3>
-            <button
-              onClick={() => setEditing('new')}
-              className="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-extrabold text-white hover:bg-blue-700"
-            >
-              <Plus size={14} /> Agregar miembro
-            </button>
-          </div>
-          {!demo && (
-            <p className="mb-3 rounded-lg bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-500">
-              Con Supabase conectado, cada persona crea su cuenta desde la pantalla de inicio. Acá podés editar su
-              perfil y su rol una vez registrada.
-            </p>
-          )}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {users.map((u) => (
-              <div key={u.id} className="flex items-center gap-3 rounded-xl border border-slate-100 p-3">
-                <Avatar user={u} size={40} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-extrabold text-slate-700">{u.name}</p>
-                  <p className="truncate text-xs text-slate-400">{u.email}</p>
-                  <span
-                    className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-extrabold tracking-wide uppercase ${
-                      u.role === 'admin' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'
+        <MiembrosEquipo />
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Gestión de miembros (alta, edición, rol y acceso beta). Se usa acá
+ * y también al pie del Panel PM del Gerente.
+ */
+export function MiembrosEquipo() {
+  const { users, currentUser, removeUser, demo, featureFlags, upsertFeatureFlag, hasFlag } = useApp()
+  const [editing, setEditing] = useState<User | 'new' | null>(null)
+
+  // Acceso anticipado al Kickoff: prende/apaga la llave para una persona.
+  const toggleKickoffBeta = (u: User) => {
+    const row = featureFlags.find((f) => f.flag === FEATURE_KICKOFF && f.userId === u.id)
+    upsertFeatureFlag({
+      id: row?.id ?? uid(),
+      flag: FEATURE_KICKOFF,
+      userId: u.id,
+      enabled: !hasFlag(FEATURE_KICKOFF, u.id),
+    })
+  }
+
+  const del = (u: User) => {
+    if (u.id === currentUser?.id) return
+    if (confirm(`¿Eliminar a ${u.name}? Sus tareas quedarán sin asignar.`)) removeUser(u.id)
+  }
+
+  return (
+    <>
+      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="font-extrabold text-slate-700">Miembros del equipo</h3>
+          <button
+            onClick={() => setEditing('new')}
+            className="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-extrabold text-white hover:bg-blue-700"
+          >
+            <Plus size={14} /> Agregar miembro
+          </button>
+        </div>
+        {!demo && (
+          <p className="mb-3 rounded-lg bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-500">
+            Con Supabase conectado, cada persona crea su cuenta desde la pantalla de inicio. Acá podés editar su
+            perfil y su rol una vez registrada.
+          </p>
+        )}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {users.map((u) => (
+            <div key={u.id} className="flex items-center gap-3 rounded-xl border border-slate-100 p-3">
+              <Avatar user={u} size={40} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-extrabold text-slate-700">{u.name}</p>
+                <p className="truncate text-xs text-slate-400">{u.email}</p>
+                <span
+                  className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-extrabold tracking-wide uppercase ${
+                    u.role === 'admin' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {u.role === 'admin' ? 'Gerente' : 'Equipo'}
+                </span>
+                {hasFlag(FEATURE_KICKOFF) && (
+                  <button
+                    onClick={() => toggleKickoffBeta(u)}
+                    title={
+                      u.id === currentUser?.id
+                        ? 'Ojo: si te la apagás a vos mismo, la recuperás corriendo de nuevo el SQL de la llave.'
+                        : 'Acceso anticipado al Kickoff semanal (beta)'
+                    }
+                    className={`mt-1 ml-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold transition ${
+                      hasFlag(FEATURE_KICKOFF, u.id)
+                        ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                        : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
                     }`}
                   >
-                    {u.role === 'admin' ? 'Gerente' : 'Equipo'}
-                  </span>
-                  {hasFlag(FEATURE_KICKOFF) && (
-                    <button
-                      onClick={() => toggleKickoffBeta(u)}
-                      title={
-                        u.id === currentUser?.id
-                          ? 'Ojo: si te la apagás a vos mismo, la recuperás corriendo de nuevo el SQL de la llave.'
-                          : 'Acceso anticipado al Kickoff semanal (beta)'
-                      }
-                      className={`mt-1 ml-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold transition ${
-                        hasFlag(FEATURE_KICKOFF, u.id)
-                          ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                          : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
-                      }`}
-                    >
-                      <Rocket size={11} /> Beta {hasFlag(FEATURE_KICKOFF, u.id) ? 'ON' : 'OFF'}
-                    </button>
-                  )}
-                </div>
-                <div className="flex flex-col gap-1">
-                  <button
-                    onClick={() => setEditing(u)}
-                    className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                    title="Editar"
-                  >
-                    <Pencil size={15} />
+                    <Rocket size={11} /> Beta {hasFlag(FEATURE_KICKOFF, u.id) ? 'ON' : 'OFF'}
                   </button>
-                  <button
-                    onClick={() => del(u)}
-                    disabled={u.id === currentUser?.id}
-                    className="rounded-lg p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-30"
-                    title={u.id === currentUser?.id ? 'No podés eliminarte a vos mismo' : 'Eliminar'}
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
+                )}
               </div>
-            ))}
-          </div>
-        </section>
-      </div>
+              <div className="flex flex-col gap-1">
+                <button
+                  onClick={() => setEditing(u)}
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                  title="Editar"
+                >
+                  <Pencil size={15} />
+                </button>
+                <button
+                  onClick={() => del(u)}
+                  disabled={u.id === currentUser?.id}
+                  className="rounded-lg p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-30"
+                  title={u.id === currentUser?.id ? 'No podés eliminarte a vos mismo' : 'Eliminar'}
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {editing && <MemberModal user={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
-    </div>
+    </>
   )
 }
 

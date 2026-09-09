@@ -46,6 +46,9 @@ export interface Task {
   links: TaskLink[]
   urgent: boolean
   importance: number // 0 (sin calificar) a 5 estrellas
+  completedAt?: string | null // ISO; la estampa la app al pasar a "done"
+  necesitaDecisionGg?: boolean // marcada como "necesita decisión del Gerente"
+  necesitaDecisionDesde?: string | null // ISO; desde cuándo espera esa decisión
 }
 
 /* ---- Mi Cuaderno (notas privadas por usuario) ---- */
@@ -132,6 +135,7 @@ export interface FeatureFlag {
 
 export const FEATURE_KICKOFF = 'FEATURE_KICKOFF'
 export const FEATURE_COMENTARIOS = 'FEATURE_COMENTARIOS'
+export const FEATURE_PANEL = 'FEATURE_PANEL'
 
 export interface DB {
   users: User[]
