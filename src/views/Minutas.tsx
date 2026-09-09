@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { CheckCircle2, ChevronLeft, ClipboardList, Plus, Trash2, Wand2 } from 'lucide-react'
-import type { Minute, MinuteAction, Task } from '../types'
+import { CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Mic, Plus, Sparkles, Trash2, Wand2 } from 'lucide-react'
+import { FEATURE_KICKOFF, type Minute, type MinuteAction, type Task } from '../types'
 import { textOn, todayKey, uid } from '../lib/utils'
 import { useIsMobile } from '../lib/useIsMobile'
 import { useApp } from '../state/AppContext'
@@ -10,7 +10,7 @@ import { Avatar, AvatarStack } from '../components/Avatar'
 import Modal, { Field, inputCls } from '../components/Modal'
 
 export default function Minutas({ onEditTask }: { onEditTask: (t: Task) => void }) {
-  const { minutes, users, tasks, currentUser, upsertMinute, removeMinute } = useApp()
+  const { minutes, users, tasks, currentUser, hasFlag, upsertMinute, removeMinute } = useApp()
   const isMobile = useIsMobile()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [convert, setConvert] = useState<{ minute: Minute; action: MinuteAction } | null>(null)
@@ -166,6 +166,8 @@ export default function Minutas({ onEditTask }: { onEditTask: (t: Task) => void 
               </Field>
             </div>
 
+            {hasFlag(FEATURE_KICKOFF) && <TranscripcionMaqueta />}
+
             <div className="mt-4">
               <Field label="Resumen de la reunión">
                 <textarea
@@ -244,6 +246,94 @@ export default function Minutas({ onEditTask }: { onEditTask: (t: Task) => void 
             setConvert(null)
           }}
         />
+      )}
+    </div>
+  )
+}
+
+/* ---- Transcripción (FASE 3: MAQUETA — el procesamiento real llega en la Fase 5) ---- */
+
+function TranscripcionMaqueta() {
+  const [abierto, setAbierto] = useState(false)
+  const [texto, setTexto] = useState('')
+  const [verCita, setVerCita] = useState(false)
+
+  return (
+    <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50/40">
+      <button
+        onClick={() => setAbierto((o) => !o)}
+        className="flex w-full items-center gap-2 px-4 py-3 text-left"
+      >
+        {abierto ? <ChevronDown size={15} className="text-blue-600" /> : <ChevronRight size={15} className="text-blue-600" />}
+        <span className="text-[11px] font-extrabold tracking-wide text-blue-700 uppercase">Transcripción</span>
+        <span className="rounded-full bg-white px-2 py-0.5 text-[9px] font-extrabold text-slate-400 uppercase">
+          Sin transcripción
+        </span>
+        <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-extrabold text-amber-700 uppercase">
+          Maqueta
+        </span>
+      </button>
+
+      {abierto && (
+        <div className="space-y-3 px-4 pb-4">
+          <textarea
+            rows={5}
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            placeholder="Pegá acá la transcripción del grabador del celular… (maqueta: todavía no guarda)"
+            className={`${inputCls} resize-y bg-white leading-relaxed`}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              disabled
+              title="Se activa en la Fase 5 (dictado por voz del navegador)"
+              className="flex cursor-not-allowed items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-300"
+            >
+              <Mic size={13} /> Dictar
+            </button>
+            <button
+              disabled
+              title="Se activa en la Fase 5 (procesamiento con IA)"
+              className="flex cursor-not-allowed items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-extrabold text-white opacity-40"
+            >
+              <Sparkles size={13} /> Generar resumen y acciones
+            </button>
+            <span className="text-[10px] font-semibold text-slate-400">
+              El dictado sirve para notas cortas. Reuniones largas: grabá con el celular y pegá el texto.
+            </span>
+          </div>
+
+          <div className="rounded-lg border border-violet-200 bg-white p-3">
+            <p className="mb-2 text-[10px] font-extrabold tracking-wide text-violet-500 uppercase">
+              Así se van a ver las acciones propuestas por la IA (ejemplo)
+            </p>
+            <div className="flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50/60 px-2.5 py-2">
+              <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[9px] font-extrabold text-violet-700">✨ propuesta</span>
+              <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-700">
+                Enviar el presupuesto de kits al MEC antes del viernes
+              </span>
+              <span className="shrink-0 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-extrabold text-white opacity-40">
+                Convertir en tarea
+              </span>
+            </div>
+            <button
+              onClick={() => setVerCita((v) => !v)}
+              className="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-violet-600 hover:text-violet-700"
+            >
+              {verCita ? <ChevronDown size={12} /> : <ChevronRight size={12} />} ver de dónde salió
+            </button>
+            {verCita && (
+              <p className="mt-1 rounded-lg bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500 italic">
+                «…entonces quedamos que le mandamos el presupuesto de los kits al MEC, sí o sí antes del viernes, porque
+                si no se cae la compra de este año…»
+              </p>
+            )}
+            <p className="mt-2 text-[10px] font-semibold text-slate-400">
+              Cada propuesta guarda la frase textual de donde salió. Nada entra al Kanban hasta que toques «Convertir en
+              tarea», igual que hoy.
+            </p>
+          </div>
+        </div>
       )}
     </div>
   )

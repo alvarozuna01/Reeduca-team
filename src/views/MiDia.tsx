@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { CheckCircle2, NotebookPen, Pin, Star, Sun, X } from 'lucide-react'
-import type { Task } from '../types'
+import { CheckCircle2, Lightbulb, NotebookPen, Pin, Star, Sun, X } from 'lucide-react'
+import { FEATURE_KICKOFF, type Task } from '../types'
 import { longDate, todayKey, uid } from '../lib/utils'
 import { useApp } from '../state/AppContext'
 import { AvatarStack } from '../components/Avatar'
@@ -14,7 +14,7 @@ export default function MiDia({
   onEdit: (t: Task) => void
   onOpenNote: (noteId: string) => void
 }) {
-  const { tasks, projects, users, notes, noteFolders, pins, currentUser, upsertTask, upsertPin, removePin } = useApp()
+  const { tasks, projects, users, notes, noteFolders, pins, currentUser, isAdmin, hasFlag, upsertTask, upsertPin, removePin } = useApp()
   const me = currentUser!
   const projectById = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects])
   const [reminder, setReminder] = useState('')
@@ -169,6 +169,54 @@ export default function MiDia({
             </div>
           </section>
         </div>
+
+        {/* Consejo de la semana (FASE 3: MAQUETA — la rotación real llega en la Fase 6) */}
+        {isAdmin && hasFlag(FEATURE_KICKOFF) && (
+          <section className="mt-4 rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
+              <span className="grid size-7 place-items-center rounded-lg bg-amber-100">
+                <Lightbulb size={15} className="fill-amber-400 text-amber-600" />
+              </span>
+              <div>
+                <h3 className="leading-tight font-extrabold text-slate-700">Consejo de la semana</h3>
+                <p className="text-[11px] font-semibold text-slate-400">Uno por semana, solo para Gerentes</p>
+              </div>
+              <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-extrabold text-amber-700 uppercase">
+                Maqueta
+              </span>
+            </div>
+            <div className="px-4 py-3.5">
+              <p className="text-sm leading-relaxed font-bold text-slate-700">
+                «Cuando delegues, escribí en una frase cómo se ve “terminado”. La mitad de los retrabajos de agosto
+                fueron por eso.»
+              </p>
+              <p className="mt-1 text-xs font-semibold text-slate-400">— te lo dijo Guillermo · hace 3 semanas</p>
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  disabled
+                  title="Se activa en la Fase 6"
+                  className="cursor-not-allowed rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-extrabold text-slate-300"
+                >
+                  Sigue vigente
+                </button>
+                <button
+                  disabled
+                  title="Se activa en la Fase 6"
+                  className="cursor-not-allowed rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-extrabold text-slate-300"
+                >
+                  Ya no aplica
+                </button>
+                <button
+                  disabled
+                  title="Se activa en la Fase 6"
+                  className="ml-auto cursor-not-allowed text-xs font-bold text-slate-300"
+                >
+                  Ver todos
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Fijados: notas ancladas y recordatorios sueltos */}
         <section className="mt-4 rounded-xl border border-slate-200 bg-white shadow-sm">
