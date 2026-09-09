@@ -1,4 +1,4 @@
-import type { DB, FeatureFlag, Hito, Minute, Note, NoteFolder, Pin, Project, Task, TaskComment, User } from '../types'
+import type { Consejo, DB, FeatureFlag, Hito, Kickoff, KickoffAnotacion, KickoffBriefing, Minute, Note, NoteFolder, Pin, Project, Task, TaskComment, User } from '../types'
 import { localApi } from './localApi'
 import { supabaseApi } from './supabaseApi'
 import { supabase } from './supabaseClient'
@@ -33,6 +33,14 @@ export interface Api {
   deleteFeatureFlag(id: string): Promise<void>
   saveTaskComment(c: TaskComment): Promise<void>
   deleteTaskComment(id: string): Promise<void>
+  saveConsejo(c: Consejo): Promise<void>
+  deleteConsejo(id: string): Promise<void>
+  saveKickoff(k: Kickoff): Promise<void>
+  deleteKickoff(id: string): Promise<void>
+  saveKickoffBriefing(b: KickoffBriefing): Promise<void>
+  deleteKickoffBriefing(id: string): Promise<void>
+  saveKickoffAnotacion(a: KickoffAnotacion): Promise<void>
+  deleteKickoffAnotacion(id: string): Promise<void>
 }
 
 export const api: Api = supabase ? supabaseApi : localApi

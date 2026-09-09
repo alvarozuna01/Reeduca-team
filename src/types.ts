@@ -97,7 +97,18 @@ export interface MinuteAction {
   id: string
   text: string
   taskId?: string // se completa cuando la acción se convierte en tarea
+  /* Campos del Módulo A (transcripción → minuta). Opcionales a propósito:
+     las acciones viejas no se migran — sin `origen` se asume 'manual'. */
+  origen?: 'ia' | 'manual'
+  citaOrigen?: string // la frase textual de la transcripción de donde salió
+  responsableSugeridoId?: string // si el nombre sugerido por la IA mapeó a un perfil
+  responsableSugeridoNombre?: string // el nombre crudo, por si no mapeó
+  fechaSugerida?: string // YYYY-MM-DD
+  descartada?: boolean // las propuestas descartadas no se borran: quedan acá
+  editada?: boolean // al editarla a mano pierde el look de "propuesta"
 }
+
+export type EstadoProcesamiento = 'sin_transcripcion' | 'sin_procesar' | 'procesada'
 
 export interface Minute {
   id: string
@@ -106,6 +117,66 @@ export interface Minute {
   participantIds: string[]
   summary: string
   actions: MinuteAction[]
+  transcripcion?: string | null // el texto crudo, tal cual; nunca se reescribe
+  transcripcionCargadaAt?: string | null // ISO
+  estadoProcesamiento?: EstadoProcesamiento
+}
+
+/* ---- Consejos (Módulo B: recomendaciones al Gerente, sin fecha ni "completar") ---- */
+
+export interface Consejo {
+  id: string
+  texto: string
+  porQue?: string | null
+  quienLoDijo?: string | null
+  fechaRecibida: string // YYYY-MM-DD
+  origenTabla?: string | null // 'minutes' si salió de una minuta procesada
+  origenId?: string | null
+  citaOrigen?: string | null
+  estado: 'activo' | 'archivado'
+  vecesMostrado: number
+  ultimaAparicion?: string | null // YYYY-MM-DD; alimenta la rotación semanal
+  creadoPor?: string | null
+}
+
+/* ---- Kickoff semanal (Módulo C) ---- */
+
+export interface KickoffNotas {
+  presentes?: string[] // ids de perfiles presentes en la reunión
+  bloque3?: Record<string, string> // línea de la semana por usuario, escrita en vivo
+  acciones?: { id: string; texto: string }[] // acciones acordadas durante la reunión
+}
+
+export interface Kickoff {
+  id: string
+  fecha: string // YYYY-MM-DD, el lunes que corresponde (único)
+  estado: 'preparado' | 'en_curso' | 'cerrado'
+  minutaId?: string | null // la minuta que se genera al cerrar
+  consejoId?: string | null // el consejo que se mostró (congelado para ese lunes)
+  notas: KickoffNotas
+}
+
+/** Respuestas de cada persona a las dos preguntas del viernes. */
+export interface KickoffBriefing {
+  id: string
+  kickoffId: string
+  usuarioId: string
+  enQueTrabajo: string
+  necesitoAlgo: string
+  completadoAt?: string | null
+}
+
+/** Anotación personal sobre el briefing. Privada por defecto: ni el Gerente la ve. */
+export interface KickoffAnotacion {
+  id: string
+  kickoffId: string
+  usuarioId: string
+  bloque: string
+  referenciaId?: string | null
+  textoResaltado?: string | null
+  comentario: string
+  visibilidad: 'privada' | 'compartida'
+  createdAt: string
 }
 
 /* ---- Comentarios en tareas ---- */
@@ -148,4 +219,8 @@ export interface DB {
   pins: Pin[]
   featureFlags: FeatureFlag[]
   taskComments: TaskComment[]
+  consejos: Consejo[]
+  kickoffs: Kickoff[]
+  kickoffBriefings: KickoffBriefing[]
+  kickoffAnotaciones: KickoffAnotacion[]
 }

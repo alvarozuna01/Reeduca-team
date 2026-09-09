@@ -1,6 +1,28 @@
 import { addDays } from 'date-fns'
-import { FEATURE_COMENTARIOS, FEATURE_KICKOFF, FEATURE_PANEL, type DB, type FeatureFlag, type Hito, type Minute, type Note, type NoteFolder, type Pin, type Task, type TaskComment } from '../types'
+import { FEATURE_COMENTARIOS, FEATURE_KICKOFF, FEATURE_PANEL, type Consejo, type DB, type FeatureFlag, type Hito, type Minute, type Note, type NoteFolder, type Pin, type Task, type TaskComment } from '../types'
 import { toKey, uid, weekDays } from './utils'
+
+/** Consejos de ejemplo del modo demo (Módulo B: recomendaciones al Gerente). */
+export const seedConsejos = (): Consejo[] => [
+  {
+    id: 'c-delegar', texto: 'Cuando delegues, escribí en una frase cómo se ve "terminado".',
+    porQue: 'La mitad de los retrabajos de agosto fueron por expectativas difusas.',
+    quienLoDijo: 'Guillermo', fechaRecibida: toKey(addDays(new Date(), -21)),
+    estado: 'activo', vecesMostrado: 3, ultimaAparicion: toKey(addDays(new Date(), -7)), creadoPor: 'u-alvaro',
+  },
+  {
+    id: 'c-precios', texto: 'Revisá los precios una vez por semestre, no cuando duele.',
+    porQue: 'En julio ajustamos tarde y absorbimos dos meses de costos nuevos.',
+    quienLoDijo: 'Contadora', fechaRecibida: toKey(addDays(new Date(), -40)),
+    estado: 'activo', vecesMostrado: 1, ultimaAparicion: toKey(addDays(new Date(), -30)), creadoPor: 'u-alvaro',
+  },
+  {
+    id: 'c-viernes', texto: 'No agendes reuniones externas los viernes a la tarde.',
+    porQue: 'Es el único bloque libre para cerrar la semana con el equipo.',
+    quienLoDijo: 'Pablo', fechaRecibida: toKey(addDays(new Date(), -60)),
+    estado: 'archivado', vecesMostrado: 5, ultimaAparicion: toKey(addDays(new Date(), -45)), creadoPor: 'u-alvaro',
+  },
+]
 
 /**
  * En el modo demo las llaves del Kickoff y del Panel arrancan prendidas
@@ -201,5 +223,9 @@ export function seedDB(): DB {
     },
   ]
 
-  return { users, projects, tasks, hitos, notes, noteFolders, minutes, pins, featureFlags: seedFeatureFlags(), taskComments }
+  return {
+    users, projects, tasks, hitos, notes, noteFolders, minutes, pins,
+    featureFlags: seedFeatureFlags(), taskComments,
+    consejos: seedConsejos(), kickoffs: [], kickoffBriefings: [], kickoffAnotaciones: [],
+  }
 }

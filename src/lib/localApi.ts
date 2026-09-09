@@ -1,5 +1,5 @@
-import type { DB, FeatureFlag, Hito, Minute, Note, NoteFolder, Pin, Project, Task, TaskComment, User } from '../types'
-import { seedDB, seedFeatureFlags } from './seed'
+import type { Consejo, DB, FeatureFlag, Hito, Kickoff, KickoffAnotacion, KickoffBriefing, Minute, Note, NoteFolder, Pin, Project, Task, TaskComment, User } from '../types'
+import { seedConsejos, seedDB, seedFeatureFlags } from './seed'
 import type { Api } from './api'
 
 export const DB_KEY = 'reeduca-db-v1'
@@ -31,6 +31,10 @@ function normalize(db: DB): DB {
   db.hitos ??= []
   db.featureFlags ??= seedFeatureFlags()
   db.taskComments ??= []
+  db.consejos ??= seedConsejos()
+  db.kickoffs ??= []
+  db.kickoffBriefings ??= []
+  db.kickoffAnotaciones ??= []
   return db
 }
 
@@ -199,6 +203,58 @@ export const localApi: Api = {
   async deleteTaskComment(id: string) {
     const db = read()
     db.taskComments = db.taskComments.filter((c) => c.id !== id)
+    write(db)
+  },
+
+  async saveConsejo(c: Consejo) {
+    const db = read()
+    db.consejos = upsert(db.consejos, c)
+    write(db)
+  },
+
+  async deleteConsejo(id: string) {
+    const db = read()
+    db.consejos = db.consejos.filter((c) => c.id !== id)
+    write(db)
+  },
+
+  async saveKickoff(k: Kickoff) {
+    const db = read()
+    db.kickoffs = upsert(db.kickoffs, k)
+    write(db)
+  },
+
+  async deleteKickoff(id: string) {
+    const db = read()
+    db.kickoffs = db.kickoffs.filter((k) => k.id !== id)
+    db.kickoffBriefings = db.kickoffBriefings.filter((b) => b.kickoffId !== id)
+    db.kickoffAnotaciones = db.kickoffAnotaciones.filter((a) => a.kickoffId !== id)
+    write(db)
+  },
+
+  async saveKickoffBriefing(b: KickoffBriefing) {
+    const db = read()
+    // Igual que en Supabase: una sola fila por (kickoffId, usuarioId).
+    const existing = db.kickoffBriefings.find((x) => x.kickoffId === b.kickoffId && x.usuarioId === b.usuarioId)
+    db.kickoffBriefings = upsert(db.kickoffBriefings, existing ? { ...b, id: existing.id } : b)
+    write(db)
+  },
+
+  async deleteKickoffBriefing(id: string) {
+    const db = read()
+    db.kickoffBriefings = db.kickoffBriefings.filter((b) => b.id !== id)
+    write(db)
+  },
+
+  async saveKickoffAnotacion(a: KickoffAnotacion) {
+    const db = read()
+    db.kickoffAnotaciones = upsert(db.kickoffAnotaciones, a)
+    write(db)
+  },
+
+  async deleteKickoffAnotacion(id: string) {
+    const db = read()
+    db.kickoffAnotaciones = db.kickoffAnotaciones.filter((a) => a.id !== id)
     write(db)
   },
 }

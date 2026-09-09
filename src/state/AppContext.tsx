@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import type { DB, FeatureFlag, Hito, Minute, Note, NoteFolder, Pin, Project, Task, TaskComment, User } from '../types'
+import type { Consejo, DB, FeatureFlag, Hito, Kickoff, KickoffAnotacion, KickoffBriefing, Minute, Note, NoteFolder, Pin, Project, Task, TaskComment, User } from '../types'
 import { api, isDemo } from '../lib/api'
 import { DB_KEY, demoSession } from '../lib/localApi'
 import { REALTIME_TABLES } from '../lib/supabaseApi'
@@ -21,6 +21,10 @@ interface AppCtx {
   hitos: Hito[]
   featureFlags: FeatureFlag[]
   taskComments: TaskComment[]
+  consejos: Consejo[]
+  kickoffs: Kickoff[]
+  kickoffBriefings: KickoffBriefing[]
+  kickoffAnotaciones: KickoffAnotacion[]
   currentUser: User | null
   isAdmin: boolean
   /** ¿Está prendida esta llave para el usuario dado (o el actual)? La fila por-usuario gana sobre la global. */
@@ -54,6 +58,14 @@ interface AppCtx {
   removeFeatureFlag: (id: string) => void
   upsertTaskComment: (c: TaskComment) => void
   removeTaskComment: (id: string) => void
+  upsertConsejo: (c: Consejo) => void
+  removeConsejo: (id: string) => void
+  upsertKickoff: (k: Kickoff) => void
+  removeKickoff: (id: string) => void
+  upsertKickoffBriefing: (b: KickoffBriefing) => void
+  removeKickoffBriefing: (id: string) => void
+  upsertKickoffAnotacion: (a: KickoffAnotacion) => void
+  removeKickoffAnotacion: (id: string) => void
 }
 
 const Ctx = createContext<AppCtx | null>(null)
@@ -107,6 +119,7 @@ const CAMPOS_PESADOS: Record<string, [string, string][]> = {
     ['actions', 'actions'],
     ['summary', 'summary'],
     ['participant_ids', 'participantIds'],
+    ['transcripcion', 'transcripcion'],
   ],
 }
 
@@ -122,6 +135,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     pins: [],
     featureFlags: [],
     taskComments: [],
+    consejos: [],
+    kickoffs: [],
+    kickoffBriefings: [],
+    kickoffAnotaciones: [],
   })
   const [loading, setLoading] = useState(true)
   const [sessionId, setSessionId] = useState<string | null>(() => (isDemo ? demoSession.get() : null))
@@ -254,6 +271,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     hitos: db.hitos,
     featureFlags: db.featureFlags,
     taskComments: db.taskComments,
+    consejos: db.consejos,
+    kickoffs: db.kickoffs,
+    kickoffBriefings: db.kickoffBriefings,
+    kickoffAnotaciones: db.kickoffAnotaciones,
     currentUser,
     isAdmin: currentUser?.role === 'admin',
 
@@ -449,6 +470,54 @@ export function AppProvider({ children }: { children: ReactNode }) {
     removeTaskComment(id) {
       setDb((d) => ({ ...d, taskComments: d.taskComments.filter((c) => c.id !== id) }))
       api.deleteTaskComment(id).catch(report)
+    },
+
+    upsertConsejo(c) {
+      setDb((d) => ({ ...d, consejos: upsertIn(d.consejos, c) }))
+      api.saveConsejo(c).catch(report)
+    },
+
+    removeConsejo(id) {
+      setDb((d) => ({ ...d, consejos: d.consejos.filter((c) => c.id !== id) }))
+      api.deleteConsejo(id).catch(report)
+    },
+
+    upsertKickoff(k) {
+      setDb((d) => ({ ...d, kickoffs: upsertIn(d.kickoffs, k) }))
+      api.saveKickoff(k).catch(report)
+    },
+
+    removeKickoff(id) {
+      setDb((d) => ({
+        ...d,
+        kickoffs: d.kickoffs.filter((k) => k.id !== id),
+        kickoffBriefings: d.kickoffBriefings.filter((b) => b.kickoffId !== id),
+        kickoffAnotaciones: d.kickoffAnotaciones.filter((a) => a.kickoffId !== id),
+      }))
+      api.deleteKickoff(id).catch(report)
+    },
+
+    upsertKickoffBriefing(b) {
+      // Una sola fila por (kickoff, usuario): si ya existe con otro id, se actualiza esa.
+      const existing = db.kickoffBriefings.find((x) => x.kickoffId === b.kickoffId && x.usuarioId === b.usuarioId)
+      const item = existing ? { ...b, id: existing.id } : b
+      setDb((d) => ({ ...d, kickoffBriefings: upsertIn(d.kickoffBriefings, item) }))
+      api.saveKickoffBriefing(item).catch(report)
+    },
+
+    removeKickoffBriefing(id) {
+      setDb((d) => ({ ...d, kickoffBriefings: d.kickoffBriefings.filter((b) => b.id !== id) }))
+      api.deleteKickoffBriefing(id).catch(report)
+    },
+
+    upsertKickoffAnotacion(a) {
+      setDb((d) => ({ ...d, kickoffAnotaciones: upsertIn(d.kickoffAnotaciones, a) }))
+      api.saveKickoffAnotacion(a).catch(report)
+    },
+
+    removeKickoffAnotacion(id) {
+      setDb((d) => ({ ...d, kickoffAnotaciones: d.kickoffAnotaciones.filter((a) => a.id !== id) }))
+      api.deleteKickoffAnotacion(id).catch(report)
     },
   }
 
