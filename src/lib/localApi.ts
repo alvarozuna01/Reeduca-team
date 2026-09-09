@@ -1,4 +1,4 @@
-import type { DB, FeatureFlag, Hito, Minute, Note, NoteFolder, Pin, Project, Task, User } from '../types'
+import type { DB, FeatureFlag, Hito, Minute, Note, NoteFolder, Pin, Project, Task, TaskComment, User } from '../types'
 import { seedDB, seedFeatureFlags } from './seed'
 import type { Api } from './api'
 
@@ -30,6 +30,7 @@ function normalize(db: DB): DB {
   db.pins ??= []
   db.hitos ??= []
   db.featureFlags ??= seedFeatureFlags()
+  db.taskComments ??= []
   return db
 }
 
@@ -186,6 +187,18 @@ export const localApi: Api = {
   async deleteFeatureFlag(id: string) {
     const db = read()
     db.featureFlags = db.featureFlags.filter((f) => f.id !== id)
+    write(db)
+  },
+
+  async saveTaskComment(c: TaskComment) {
+    const db = read()
+    db.taskComments = upsert(db.taskComments, c)
+    write(db)
+  },
+
+  async deleteTaskComment(id: string) {
+    const db = read()
+    db.taskComments = db.taskComments.filter((c) => c.id !== id)
     write(db)
   },
 }

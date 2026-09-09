@@ -105,6 +105,17 @@ export interface Minute {
   actions: MinuteAction[]
 }
 
+/* ---- Comentarios en tareas ---- */
+
+/** Comentario de cualquier miembro sobre una tarea (propia o ajena). */
+export interface TaskComment {
+  id: string
+  taskId: string
+  userId: string
+  text: string
+  createdAt: string // ISO
+}
+
 /* ---- Llaves de funciones (feature flags) ---- */
 
 /**
@@ -120,6 +131,7 @@ export interface FeatureFlag {
 }
 
 export const FEATURE_KICKOFF = 'FEATURE_KICKOFF'
+export const FEATURE_COMENTARIOS = 'FEATURE_COMENTARIOS'
 
 export interface DB {
   users: User[]
@@ -131,4 +143,5 @@ export interface DB {
   minutes: Minute[]
   pins: Pin[]
   featureFlags: FeatureFlag[]
+  taskComments: TaskComment[]
 }

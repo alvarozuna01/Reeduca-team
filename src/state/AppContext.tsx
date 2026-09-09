@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import type { DB, FeatureFlag, Hito, Minute, Note, NoteFolder, Pin, Project, Task, User } from '../types'
+import type { DB, FeatureFlag, Hito, Minute, Note, NoteFolder, Pin, Project, Task, TaskComment, User } from '../types'
 import { api, isDemo } from '../lib/api'
 import { DB_KEY, demoSession } from '../lib/localApi'
 import { REALTIME_TABLES } from '../lib/supabaseApi'
@@ -20,6 +20,7 @@ interface AppCtx {
   pins: Pin[]
   hitos: Hito[]
   featureFlags: FeatureFlag[]
+  taskComments: TaskComment[]
   currentUser: User | null
   isAdmin: boolean
   /** ¿Está prendida esta llave para el usuario dado (o el actual)? La fila por-usuario gana sobre la global. */
@@ -49,6 +50,8 @@ interface AppCtx {
   removeHito: (id: string) => void
   upsertFeatureFlag: (f: FeatureFlag) => void
   removeFeatureFlag: (id: string) => void
+  upsertTaskComment: (c: TaskComment) => void
+  removeTaskComment: (id: string) => void
 }
 
 const Ctx = createContext<AppCtx | null>(null)
@@ -95,6 +98,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     minutes: [],
     pins: [],
     featureFlags: [],
+    taskComments: [],
   })
   const [loading, setLoading] = useState(true)
   const [sessionId, setSessionId] = useState<string | null>(() => (isDemo ? demoSession.get() : null))
@@ -226,6 +230,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     pins: db.pins,
     hitos: db.hitos,
     featureFlags: db.featureFlags,
+    taskComments: db.taskComments,
     currentUser,
     isAdmin: currentUser?.role === 'admin',
 
@@ -405,6 +410,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     removeFeatureFlag(id) {
       setDb((d) => ({ ...d, featureFlags: d.featureFlags.filter((f) => f.id !== id) }))
       api.deleteFeatureFlag(id).catch(report)
+    },
+
+    upsertTaskComment(c) {
+      setDb((d) => ({ ...d, taskComments: upsertIn(d.taskComments, c) }))
+      api.saveTaskComment(c).catch(report)
+    },
+
+    removeTaskComment(id) {
+      setDb((d) => ({ ...d, taskComments: d.taskComments.filter((c) => c.id !== id) }))
+      api.deleteTaskComment(id).catch(report)
     },
   }
 

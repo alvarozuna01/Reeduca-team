@@ -1,10 +1,14 @@
 import { addDays } from 'date-fns'
-import { FEATURE_KICKOFF, type DB, type FeatureFlag, type Hito, type Minute, type Note, type NoteFolder, type Pin, type Task } from '../types'
+import { FEATURE_COMENTARIOS, FEATURE_KICKOFF, type DB, type FeatureFlag, type Hito, type Minute, type Note, type NoteFolder, type Pin, type Task, type TaskComment } from '../types'
 import { toKey, uid, weekDays } from './utils'
 
-/** En el modo demo la llave del Kickoff arranca prendida para el admin de ejemplo. */
+/**
+ * En el modo demo la llave del Kickoff arranca prendida para el admin de
+ * ejemplo, y la de comentarios para todo el equipo (fila global).
+ */
 export const seedFeatureFlags = (): FeatureFlag[] => [
   { id: 'ff-kickoff-demo', flag: FEATURE_KICKOFF, userId: 'u-alvaro', enabled: true },
+  { id: 'ff-comentarios-demo', flag: FEATURE_COMENTARIOS, userId: null, enabled: true },
 ]
 
 /**
@@ -46,6 +50,13 @@ export function seedDB(): DB {
     { id: 'h-intercolegial', projectId: 'p-comercial', name: 'Intercolegial Cristo Rey', date: vie, position: 1 },
   ]
 
+  // Definida aparte para poder colgarle comentarios de ejemplo más abajo.
+  const tPlanilla = mk({
+    projectId: 'p-academico', title: 'Diseño de planilla de puntajes', date: mar,
+    assigneeIds: ['u-lucia', 'u-coty', 'u-alvaro'], status: 'doing', importance: 4,
+    checklist: [{ id: uid(), text: 'Sistema de registro', done: false }],
+  })
+
   const tasks: Task[] = [
     // LUNES
     mk({ projectId: 'p-academico', title: 'Escritura · Unidad 4 · 4to', description: '(antes: Desarrollo: contenido técnico y pedagógico Módulo 4)', date: lun, assigneeIds: ['u-pato'], status: 'doing', hitoId: 'h-modulo4' }),
@@ -61,11 +72,7 @@ export function seedDB(): DB {
     mk({ projectId: 'p-academico', title: 'Calendarizar visitas a IFDs para cierre FIFA', date: lun, assigneeIds: ['u-alvaro'], status: 'todo', importance: 4 }),
 
     // MARTES
-    mk({
-      projectId: 'p-academico', title: 'Diseño de planilla de puntajes', date: mar,
-      assigneeIds: ['u-lucia', 'u-coty', 'u-alvaro'], status: 'doing', importance: 4,
-      checklist: [{ id: uid(), text: 'Sistema de registro', done: false }],
-    }),
+    tPlanilla,
     mk({
       projectId: 'p-academico', title: 'Escritura · Unidad 4 · 4to', description: '(antes: Desarrollo: contenido técnico y pedagógico Módulo 4)', date: mar,
       assigneeIds: ['u-pato'], status: 'doing',
@@ -165,5 +172,18 @@ export function seedDB(): DB {
     },
   ]
 
-  return { users, projects, tasks, hitos, notes, noteFolders, minutes, pins, featureFlags: seedFeatureFlags() }
+  const taskComments: TaskComment[] = [
+    {
+      id: uid(), taskId: tPlanilla.id, userId: 'u-lucia',
+      text: 'Le pasé el borrador a Coty. ¿Lo revisás antes del jueves así cerramos el sistema de registro?',
+      createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+    },
+    {
+      id: uid(), taskId: tPlanilla.id, userId: 'u-alvaro',
+      text: 'Visto 👌 Sumale una columna de puntaje por barras, como en el intercolegial pasado.',
+      createdAt: new Date(Date.now() - 40 * 60 * 1000).toISOString(),
+    },
+  ]
+
+  return { users, projects, tasks, hitos, notes, noteFolders, minutes, pins, featureFlags: seedFeatureFlags(), taskComments }
 }

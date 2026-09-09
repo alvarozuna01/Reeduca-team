@@ -2,6 +2,7 @@ import { Paperclip } from 'lucide-react'
 import type { Project, Task, User } from '../types'
 import { isOverdue, textOn } from '../lib/utils'
 import { AvatarStack } from './Avatar'
+import { CommentBadge } from './Comments'
 import { ImportancePill, UrgentPill } from './Stars'
 
 interface Props {
@@ -107,6 +108,7 @@ export default function TaskCard({ task, project, assignees, onOpen, onToggleChe
                 {checked}/{task.checklist.length}
               </span>
             )}
+            <CommentBadge taskId={task.id} />
           </span>
           <AvatarStack users={assignees} size={20} />
         </div>
