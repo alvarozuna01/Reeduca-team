@@ -72,9 +72,9 @@ from public.profiles p
 where p.email = 'alvaro.ozuna01@gmail.com'
 on conflict (flag, user_id) do update set enabled = true;
 
--- 2) Fila global apagada, lista para prender cuando decidas abrirlo al equipo:
---    Supabase → Table Editor → feature_flags → esta fila → enabled = true.
---    (do nothing: si ya la prendiste, volver a correr esto NO la apaga.)
+-- 2) Fila global PRENDIDA: los comentarios quedan abiertos a todo el equipo
+--    (pedido del Gerente General el 09/09/2026). Para apagarlos de vuelta:
+--    Supabase → Table Editor → feature_flags → esta fila → enabled = false.
 insert into public.feature_flags (flag, user_id, enabled)
-values ('FEATURE_COMENTARIOS', null, false)
-on conflict (flag, user_id) do nothing;
+values ('FEATURE_COMENTARIOS', null, true)
+on conflict (flag, user_id) do update set enabled = true;
