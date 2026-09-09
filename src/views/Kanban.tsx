@@ -22,6 +22,7 @@ import { addWeeks } from 'date-fns'
 import { usePref } from '../lib/usePref'
 import { useApp } from '../state/AppContext'
 import { AvatarStack } from '../components/Avatar'
+import { CommentBadge } from '../components/Comments'
 import { ImportancePill, UrgentPill } from '../components/Stars'
 import MultiFilter, { HideToggle } from '../components/MultiFilter'
 
@@ -316,6 +317,7 @@ function KanbanCard({
             </span>
           )}
           <ImportancePill value={task.importance} />
+          <CommentBadge taskId={task.id} />
         </span>
         <AvatarStack users={assignees} size={18} />
       </div>

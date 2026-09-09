@@ -1,4 +1,4 @@
-import type { DB, Hito, Minute, Note, NoteFolder, Pin, Project, Task, User } from '../types'
+import type { DB, FeatureFlag, Hito, Minute, Note, NoteFolder, Pin, Project, Task, TaskComment, User } from '../types'
 import type { Api } from './api'
 import { supabase } from './supabaseClient'
 
@@ -170,6 +170,38 @@ const projectToRow = (p: Project) => ({
   description: p.description || null,
 })
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const rowToFlag = (r: any): FeatureFlag => ({
+  id: r.id,
+  flag: r.flag,
+  userId: r.user_id ?? null,
+  enabled: r.enabled ?? false,
+})
+
+const flagToRow = (f: FeatureFlag) => ({
+  id: f.id,
+  flag: f.flag,
+  user_id: f.userId,
+  enabled: f.enabled,
+})
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const rowToComment = (r: any): TaskComment => ({
+  id: r.id,
+  taskId: r.task_id,
+  userId: r.user_id,
+  text: r.text ?? '',
+  createdAt: r.created_at ?? new Date().toISOString(),
+})
+
+const commentToRow = (c: TaskComment) => ({
+  id: c.id,
+  task_id: c.taskId,
+  user_id: c.userId,
+  text: c.text,
+  created_at: c.createdAt,
+})
+
 function check(error: { message: string } | null) {
   if (error) throw new Error(error.message)
 }
@@ -188,6 +220,8 @@ export const REALTIME_TABLES: { table: string; key: keyof DB; map: (r: any) => {
   { table: 'minutes', key: 'minutes', map: rowToMinute },
   { table: 'pins', key: 'pins', map: rowToPin },
   { table: 'hitos', key: 'hitos', map: rowToHito },
+  { table: 'feature_flags', key: 'featureFlags', map: rowToFlag },
+  { table: 'task_comments', key: 'taskComments', map: rowToComment },
 ]
 
 export const supabaseApi: Api = {
@@ -209,9 +243,11 @@ export const supabaseApi: Api = {
     check(notes.error)
     check(folders.error)
     check(minutes.error)
-    // pins e hitos son de fases nuevas: si las tablas no existen, la app sigue andando.
+    // pins, hitos y feature_flags son de fases nuevas: si las tablas no existen, la app sigue andando.
     const pins = await sb.from('pins').select('*').then((r) => (r.error ? [] : (r.data ?? [])))
     const hitos = await sb.from('hitos').select('*').order('position').then((r) => (r.error ? [] : (r.data ?? [])))
+    const flags = await sb.from('feature_flags').select('*').then((r) => (r.error ? [] : (r.data ?? [])))
+    const comments = await sb.from('task_comments').select('*').order('created_at').then((r) => (r.error ? [] : (r.data ?? [])))
     return {
       users: (users.data ?? []).map(rowToUser),
       projects: (projects.data ?? []).map(rowToProject),
@@ -221,6 +257,8 @@ export const supabaseApi: Api = {
       minutes: (minutes.data ?? []).map(rowToMinute),
       pins: pins.map(rowToPin),
       hitos: hitos.map(rowToHito),
+      featureFlags: flags.map(rowToFlag),
+      taskComments: comments.map(rowToComment),
     }
   },
 
@@ -300,5 +338,23 @@ export const supabaseApi: Api = {
   async deleteHito(id) {
     // las tareas vinculadas quedan sin hito (FK ON DELETE SET NULL)
     check((await supabase!.from('hitos').delete().eq('id', id)).error)
+  },
+
+  async saveFeatureFlag(f) {
+    // onConflict por (flag, user_id): si ya existe la fila de esa llave para esa
+    // persona (aunque tenga otro id), se actualiza en vez de duplicarse.
+    check((await supabase!.from('feature_flags').upsert(flagToRow(f), { onConflict: 'flag,user_id' })).error)
+  },
+
+  async deleteFeatureFlag(id) {
+    check((await supabase!.from('feature_flags').delete().eq('id', id)).error)
+  },
+
+  async saveTaskComment(c) {
+    check((await supabase!.from('task_comments').upsert(commentToRow(c))).error)
+  },
+
+  async deleteTaskComment(id) {
+    check((await supabase!.from('task_comments').delete().eq('id', id)).error)
   },
 }

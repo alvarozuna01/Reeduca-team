@@ -4,6 +4,7 @@ import type { Task } from '../types'
 import { longDate, todayKey, uid } from '../lib/utils'
 import { useApp } from '../state/AppContext'
 import { AvatarStack } from '../components/Avatar'
+import { CommentBadge } from '../components/Comments'
 import { ImportancePill, Stars, UrgentPill } from '../components/Stars'
 
 export default function MiDia({
@@ -104,6 +105,7 @@ export default function MiDia({
                         <Stars value={t.importance} />
                         {t.urgent && <UrgentPill />}
                         <span>{p?.name}</span>·<span>{t.date ?? '📥 sin fecha'}</span>
+                        <CommentBadge taskId={t.id} />
                       </span>
                     </span>
                     <AvatarStack users={users.filter((u) => t.assigneeIds.includes(u.id))} size={18} />
@@ -158,6 +160,7 @@ export default function MiDia({
                         <span>{p?.name}</span>
                         {!done && t.urgent && <UrgentPill />}
                         <ImportancePill value={t.importance} />
+                        <CommentBadge taskId={t.id} />
                       </span>
                     </button>
                   </div>

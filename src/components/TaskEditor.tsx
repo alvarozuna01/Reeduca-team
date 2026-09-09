@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { Flame, Lock, Plus, Trash2, X } from 'lucide-react'
-import type { Status, Task } from '../types'
+import { FEATURE_COMENTARIOS, type Status, type Task } from '../types'
 import { STATUS_LABEL, canEditTask, textOn, todayKey, uid } from '../lib/utils'
 import { useApp } from '../state/AppContext'
 import { Avatar } from './Avatar'
+import { TaskComments } from './Comments'
 import { Field, inputCls } from './Modal'
 import { StarRating } from './Stars'
 
@@ -14,7 +15,7 @@ interface Props {
 }
 
 export default function TaskEditor({ task, defaults, onClose }: Props) {
-  const { projects, users, tasks, hitos, currentUser, isAdmin, upsertTask, removeTask } = useApp()
+  const { projects, users, tasks, hitos, currentUser, isAdmin, hasFlag, upsertTask, removeTask } = useApp()
   const isNew = !task
   const readOnly = !isNew && !canEditTask(task, currentUser?.id, isAdmin)
 
@@ -353,6 +354,10 @@ export default function TaskEditor({ task, defaults, onClose }: Props) {
             </div>
           </Field>
           </fieldset>
+
+          {/* Comentarios: fuera del fieldset a propósito — se puede comentar
+              cualquier tarea, aunque para vos sea de solo lectura. */}
+          {!isNew && hasFlag(FEATURE_COMENTARIOS) && <TaskComments taskId={task.id} />}
         </div>
 
         <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
