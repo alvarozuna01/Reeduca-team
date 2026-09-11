@@ -213,7 +213,7 @@ export function seedDB(): DB {
   const taskComments: TaskComment[] = [
     {
       id: uid(), taskId: tPlanilla.id, userId: 'u-lucia',
-      text: 'Le pasé el borrador a Coty. ¿Lo revisás antes del jueves así cerramos el sistema de registro?',
+      text: '@Álvaro le pasé el borrador a @Coty. ¿Lo revisan antes del jueves así cerramos el sistema de registro?',
       createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
     },
     {

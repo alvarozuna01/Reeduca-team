@@ -82,7 +82,12 @@ function Shell() {
             onNewTask={(defaults) => setEditor({ defaults: { date: todayKey(), ...defaults } })}
           />
         )}
-        {view === 'panel' && <Panel onEditTask={(t) => setEditor({ task: t })} />}
+        {view === 'panel' && (
+          <Panel
+            onEditTask={(t) => setEditor({ task: t })}
+            onNewTask={(defaults) => setEditor({ defaults: { date: todayKey(), ...defaults } })}
+          />
+        )}
         {view === 'equipo' && <Equipo onEditTask={(t) => setEditor({ task: t })} />}
       </main>
       <BottomNav view={view} setView={setView} />

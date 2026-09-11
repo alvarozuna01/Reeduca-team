@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { CalendarDays, CheckCircle2, Inbox, LayoutDashboard, Pencil, Plus, SquareKanban, Trash2 } from 'lucide-react'
+import { CalendarDays, Inbox, LayoutDashboard, Pencil, Plus, SquareKanban, Trash2 } from 'lucide-react'
 import type { Project, Task } from '../types'
-import { PROJECT_COLORS, canEditTask, isOverdue, todayKey, uid } from '../lib/utils'
+import { PROJECT_COLORS, isOverdue, todayKey, uid } from '../lib/utils'
 import { useApp } from '../state/AppContext'
 import Modal, { Field, inputCls } from '../components/Modal'
-import { Avatar, AvatarStack } from '../components/Avatar'
-import { ImportancePill, UrgentPill } from '../components/Stars'
+import { Avatar } from '../components/Avatar'
+import { TareasKanban, TaskRow } from '../components/TareasModal'
 
 export default function Proyectos({
   onEditTask,
@@ -179,12 +179,6 @@ function ProjectDetailModal({
     )
   }, [list])
 
-  const COLS: { status: Task['status']; label: string; dot: string }[] = [
-    { status: 'todo', label: 'Por hacer', dot: '#94A3B8' },
-    { status: 'doing', label: 'En progreso', dot: '#5AB6E8' },
-    { status: 'done', label: 'Completado', dot: '#34C48E' },
-  ]
-
   return (
     <Modal title={project.name} onClose={onClose} width="max-w-5xl">
       <div className="-mx-5 -mt-4 mb-4 h-1.5" style={{ background: project.color }} />
@@ -355,83 +349,27 @@ function ProjectDetailModal({
         </div>
       )}
 
-      {mode === 'kanban' && (
-        <div className="grid gap-3 md:grid-cols-3">
-          {COLS.map((col) => {
-            const colTasks = list.filter((t) => t.status === col.status)
-            return (
-              <div key={col.status} className="rounded-xl bg-slate-100/70 p-2">
-                <div className="flex items-center gap-2 px-1.5 pb-1.5">
-                  <span className="size-2.5 rounded-full" style={{ background: col.dot }} />
-                  <span className="text-xs font-extrabold text-slate-600">{col.label}</span>
-                  <span className="ml-auto rounded-full bg-white px-1.5 text-[10px] font-extrabold text-slate-400">
-                    {colTasks.length}
-                  </span>
-                </div>
-                <div className="divide-y divide-slate-100 rounded-lg bg-white">
-                  {colTasks.length === 0 && (
-                    <p className="py-4 text-center text-[11px] font-semibold text-slate-300">Vacío</p>
-                  )}
-                  {colTasks.map((t) => (
-                    <TaskRow key={t.id} task={t} onEdit={() => onEditTask(t)} />
-                  ))}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
+      {mode === 'kanban' && <TareasKanban list={list} onEditTask={onEditTask} />}
     </Modal>
   )
 }
 
-function TaskRow({ task, onEdit }: { task: Task; onEdit: () => void }) {
-  const { users, currentUser, isAdmin, upsertTask } = useApp()
-  const done = task.status === 'done'
-  const editable = canEditTask(task, currentUser?.id, isAdmin)
-  return (
-    <div className="flex items-center gap-2.5 px-3 py-2 transition hover:bg-slate-50">
-      <button
-        disabled={!editable}
-        onClick={() => upsertTask({ ...task, status: done ? 'todo' : 'done' })}
-        title={!editable ? 'Solo sus responsables o un Gerente' : done ? 'Marcar pendiente' : 'Marcar completada'}
-        className={`${done ? 'text-emerald-500' : 'text-slate-300 hover:text-emerald-400'} disabled:cursor-not-allowed disabled:opacity-40`}
-      >
-        <CheckCircle2 size={17} className={done ? 'fill-emerald-100' : ''} />
-      </button>
-      <button onClick={onEdit} className="min-w-0 flex-1 text-left">
-        <span className={`block truncate text-sm font-bold ${done ? 'text-slate-300 line-through' : 'text-slate-600'}`}>
-          {task.title}
-        </span>
-      </button>
-      {task.urgent && !done && <UrgentPill />}
-      {isOverdue(task) && (
-        <span className="rounded-sm bg-[#e5484d] px-1.5 py-0.5 text-[9px] font-extrabold tracking-wider text-white uppercase">
-          Atrasada
-        </span>
-      )}
-      <ImportancePill value={task.importance} />
-      <span className="text-[11px] font-semibold whitespace-nowrap text-slate-400">
-        {task.date ? format(parseISO(task.date), 'd MMM', { locale: es }) : '📥'}
-        {task.startTime ? ` · ${task.startTime}` : ''}
-      </span>
-      <AvatarStack users={users.filter((u) => task.assigneeIds.includes(u.id))} size={17} />
-    </div>
-  )
-}
-
 function ProjectModal({ project, onClose }: { project: Project | null; onClose: () => void }) {
-  const { upsertProject } = useApp()
+  const { projects, upsertProject } = useApp()
   const [name, setName] = useState(project?.name ?? '')
   const [color, setColor] = useState(project?.color ?? PROJECT_COLORS[0])
   const [description, setDescription] = useState(project?.description ?? '')
 
   const save = () => {
+    // Un proyecto nuevo va al final del orden configurado (si todavía nadie
+    // ordenó nada, todos quedan en 0 y la lista sigue siendo alfabética).
+    const yaOrdenados = projects.some((p) => (p.position ?? 0) > 0)
     upsertProject({
       id: project?.id ?? uid(),
       name: name.trim(),
       color,
       description: description.trim() || undefined,
+      position: project ? project.position : yaOrdenados ? Math.max(...projects.map((p) => p.position ?? 0)) + 1 : 0,
     })
     onClose()
   }

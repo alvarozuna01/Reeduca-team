@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import type { Consejo, DB, FeatureFlag, Hito, Kickoff, KickoffAnotacion, KickoffBriefing, Minute, Note, NoteFolder, Pin, Project, Task, TaskComment, User } from '../types'
 import { api, isDemo } from '../lib/api'
@@ -41,6 +41,8 @@ interface AppCtx {
   upsertTasks: (ts: Task[]) => void
   removeTask: (id: string) => void
   upsertProject: (p: Project) => void
+  /** Guarda el orden de los proyectos (el que se ve en las listas al cargar tareas). */
+  reordenarProyectos: (idsEnOrden: string[]) => void
   removeProject: (id: string) => void
   upsertUser: (u: User) => void
   removeUser: (id: string) => void
@@ -257,12 +259,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const currentUser = sessionId ? (db.users.find((u) => u.id === sessionId) ?? null) : null
 
+  // Proyectos en el orden que configura el Gerente; sin orden configurado, alfabético.
+  const projectsOrdenados = useMemo(
+    () =>
+      [...db.projects].sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.name.localeCompare(b.name, 'es')),
+    [db.projects],
+  )
+
   const value: AppCtx = {
     loading,
     demo: isDemo,
     dataError,
     users: db.users,
-    projects: db.projects,
+    projects: projectsOrdenados,
     tasks: db.tasks,
     notes: db.notes,
     noteFolders: db.noteFolders,
@@ -354,6 +363,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     upsertProject(p) {
       setDb((d) => ({ ...d, projects: upsertIn(d.projects, p) }))
       api.saveProject(p).catch(report)
+    },
+
+    reordenarProyectos(idsEnOrden) {
+      // Solo se guardan los que cambiaron de lugar (la primera vez, todos salvo el primero).
+      const cambios = idsEnOrden.flatMap((id, i): Project[] => {
+        const p = db.projects.find((x) => x.id === id)
+        return p && (p.position ?? 0) !== i ? [{ ...p, position: i }] : []
+      })
+      if (!cambios.length) return
+      setDb((d) => ({
+        ...d,
+        projects: d.projects.map((p) => {
+          const i = idsEnOrden.indexOf(p.id)
+          return i === -1 ? p : { ...p, position: i }
+        }),
+      }))
+      Promise.all(cambios.map((p) => api.saveProject(p))).catch(report)
     },
 
     removeProject(id) {

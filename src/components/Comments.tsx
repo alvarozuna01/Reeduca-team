@@ -6,6 +6,7 @@ import { FEATURE_COMENTARIOS, type TaskComment } from '../types'
 import { uid } from '../lib/utils'
 import { useApp } from '../state/AppContext'
 import { Avatar } from './Avatar'
+import { MentionField, TextoConMenciones } from './Menciones'
 import { inputCls } from './Modal'
 
 /**
@@ -73,7 +74,9 @@ export function TaskComments({ taskId }: { taskId: string }) {
                     {formatDistanceToNow(parseISO(c.createdAt), { addSuffix: true, locale: es })}
                   </span>
                 </p>
-                <p className="text-sm leading-snug font-semibold whitespace-pre-wrap text-slate-700">{c.text}</p>
+                <p className="text-sm leading-snug font-semibold whitespace-pre-wrap text-slate-700">
+                  <TextoConMenciones texto={c.text} />
+                </p>
               </div>
               {(own || isAdmin) && (
                 <button
@@ -91,14 +94,14 @@ export function TaskComments({ taskId }: { taskId: string }) {
 
       <div className="mt-2.5 flex items-center gap-2">
         {currentUser && <Avatar user={currentUser} size={24} />}
-        <input
+        <MentionField
           value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') send()
-          }}
-          placeholder="Escribí un comentario y apretá Enter…"
+          onChange={setText}
+          onEnter={send}
+          hacia="arriba"
+          placeholder="Escribí un comentario… (con @ mencionás a alguien)"
           className={`${inputCls} bg-white`}
+          wrapperClassName="relative min-w-0 flex-1"
         />
         <button
           onClick={send}

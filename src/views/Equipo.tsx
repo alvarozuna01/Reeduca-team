@@ -4,6 +4,7 @@ import { FEATURE_KICKOFF, type Role, type Task, type User } from '../types'
 import { STATUS_LABEL, USER_COLORS, isOverdue, uid } from '../lib/utils'
 import { useApp } from '../state/AppContext'
 import { Avatar, AvatarStack } from '../components/Avatar'
+import ConfiguracionGerente from '../components/ConfiguracionGerente'
 import Modal, { Field, inputCls } from '../components/Modal'
 import { Stars, UrgentPill } from '../components/Stars'
 
@@ -184,6 +185,8 @@ export default function Equipo({ onEditTask }: { onEditTask: (t: Task) => void }
             </div>
           </section>
         </div>
+
+        <ConfiguracionGerente />
 
         <MiembrosEquipo />
       </div>

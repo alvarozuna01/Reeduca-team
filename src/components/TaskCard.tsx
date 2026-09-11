@@ -3,6 +3,7 @@ import type { Project, Task, User } from '../types'
 import { isOverdue, textOn } from '../lib/utils'
 import { AvatarStack } from './Avatar'
 import { CommentBadge } from './Comments'
+import { TextoConMenciones } from './Menciones'
 import { ImportancePill, UrgentPill } from './Stars'
 
 interface Props {
@@ -48,7 +49,9 @@ export default function TaskCard({ task, project, assignees, onOpen, onToggleChe
 
       <div className="space-y-1.5 px-2.5 pt-1.5 pb-2">
         {task.description && (
-          <p className="text-right text-[11px] leading-snug text-slate-500">{task.description}</p>
+          <p className="text-right text-[11px] leading-snug text-slate-500">
+            <TextoConMenciones texto={task.description} />
+          </p>
         )}
         {time && <p className="text-right text-[11px] font-semibold text-slate-500">{time}</p>}
 

@@ -14,6 +14,7 @@ export interface Project {
   name: string
   color: string
   description?: string
+  position?: number // orden configurado por el Gerente (empate → alfabético)
 }
 
 export type Status = 'todo' | 'doing' | 'done'

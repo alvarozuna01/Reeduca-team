@@ -3,11 +3,12 @@ import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Mic, Plus, Sparkles, Trash2, Wand2 } from 'lucide-react'
 import { FEATURE_KICKOFF, type Minute, type MinuteAction, type Task } from '../types'
-import { textOn, todayKey, uid } from '../lib/utils'
+import { todayKey, uid } from '../lib/utils'
 import { useIsMobile } from '../lib/useIsMobile'
 import { useApp } from '../state/AppContext'
 import { Avatar, AvatarStack } from '../components/Avatar'
-import Modal, { Field, inputCls } from '../components/Modal'
+import Modal, { Field, FieldDiv, inputCls } from '../components/Modal'
+import { PeopleSelect, ProjectSelect } from '../components/Selectores'
 
 export default function Minutas({ onEditTask }: { onEditTask: (t: Task) => void }) {
   const { minutes, users, tasks, currentUser, hasFlag, upsertMinute, removeMinute } = useApp()
@@ -352,7 +353,7 @@ function ConvertModal({
   onClose: () => void
   onConverted: (taskId: string) => void
 }) {
-  const { projects, users, tasks, upsertTask } = useApp()
+  const { projects, tasks, upsertTask } = useApp()
   const [title, setTitle] = useState(action.text)
   const [projectId, setProjectId] = useState(projects[0]?.id ?? '')
   const [date, setDate] = useState(todayKey())
@@ -384,52 +385,15 @@ function ConvertModal({
         <Field label="Título de la tarea">
           <input value={title} onChange={(e) => setTitle(e.target.value)} className={`${inputCls} font-bold`} autoFocus />
         </Field>
-        <Field label="Proyecto">
-          <div className="flex flex-wrap gap-1.5">
-            {projects.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setProjectId(p.id)}
-                className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold transition ${
-                  projectId === p.id ? 'border-transparent' : 'border-slate-200 text-slate-500 hover:border-slate-300'
-                }`}
-                style={projectId === p.id ? { background: p.color, color: textOn(p.color) } : undefined}
-              >
-                <span
-                  className="size-2 rounded-full"
-                  style={{ background: projectId === p.id ? textOn(p.color) : p.color }}
-                />
-                {p.name}
-              </button>
-            ))}
-          </div>
-        </Field>
+        <FieldDiv label="Proyecto">
+          <ProjectSelect value={projectId} onChange={setProjectId} />
+        </FieldDiv>
         <Field label="Fecha">
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} />
         </Field>
-        <Field label="Responsables">
-          <div className="flex flex-wrap gap-1.5">
-            {users.map((u) => {
-              const active = assigneeIds.includes(u.id)
-              return (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={() =>
-                    setAssigneeIds(active ? assigneeIds.filter((id) => id !== u.id) : [...assigneeIds, u.id])
-                  }
-                  className={`flex items-center gap-1.5 rounded-full border py-1 pr-2.5 pl-1 text-xs font-bold transition ${
-                    active ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'
-                  }`}
-                >
-                  <Avatar user={u} size={20} />
-                  {u.name}
-                </button>
-              )
-            })}
-          </div>
-        </Field>
+        <FieldDiv label="Responsables">
+          <PeopleSelect value={assigneeIds} onChange={setAssigneeIds} />
+        </FieldDiv>
         <div className="flex justify-end gap-2 pt-1">
           <button onClick={onClose} className="rounded-lg px-3 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100">
             Cancelar

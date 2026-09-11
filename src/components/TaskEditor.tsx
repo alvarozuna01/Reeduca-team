@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { Flame, Lock, Plus, Scale, Trash2, X } from 'lucide-react'
 import { FEATURE_COMENTARIOS, FEATURE_PANEL, type Status, type Task } from '../types'
-import { STATUS_LABEL, canEditTask, textOn, todayKey, uid } from '../lib/utils'
+import { STATUS_LABEL, canEditTask, todayKey, uid } from '../lib/utils'
 import { useApp } from '../state/AppContext'
-import { Avatar } from './Avatar'
 import { TaskComments } from './Comments'
-import { Field, inputCls } from './Modal'
+import { MentionField } from './Menciones'
+import { Field, FieldDiv, inputCls } from './Modal'
+import { PeopleSelect, ProjectSelect } from './Selectores'
 import { StarRating } from './Stars'
 
 interface Props {
@@ -15,7 +16,7 @@ interface Props {
 }
 
 export default function TaskEditor({ task, defaults, onClose }: Props) {
-  const { projects, users, tasks, hitos, currentUser, isAdmin, hasFlag, upsertTask, removeTask } = useApp()
+  const { projects, tasks, hitos, currentUser, isAdmin, hasFlag, upsertTask, removeTask } = useApp()
   const isNew = !task
   const readOnly = !isNew && !canEditTask(task, currentUser?.id, isAdmin)
 
@@ -123,29 +124,9 @@ export default function TaskEditor({ task, defaults, onClose }: Props) {
             />
           </Field>
 
-          <Field label="Proyecto">
-            <div className="flex flex-wrap gap-1.5">
-              {projects.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => set('projectId', p.id)}
-                  className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold transition ${
-                    draft.projectId === p.id
-                      ? 'border-transparent'
-                      : 'border-slate-200 text-slate-500 hover:border-slate-300'
-                  }`}
-                  style={draft.projectId === p.id ? { background: p.color, color: textOn(p.color) } : undefined}
-                >
-                  <span
-                    className="size-2 rounded-full"
-                    style={{ background: draft.projectId === p.id ? textOn(p.color) : p.color }}
-                  />
-                  {p.name}
-                </button>
-              ))}
-            </div>
-          </Field>
+          <FieldDiv label="Proyecto">
+            <ProjectSelect value={draft.projectId} onChange={(id) => set('projectId', id)} />
+          </FieldDiv>
 
           <div className="grid grid-cols-3 gap-2">
             <Field label="Fecha">
@@ -261,38 +242,17 @@ export default function TaskEditor({ task, defaults, onClose }: Props) {
             </Field>
           )}
 
-          <Field label="Responsables">
-            <div className="flex flex-wrap gap-1.5">
-              {users.map((u) => {
-                const active = draft.assigneeIds.includes(u.id)
-                return (
-                  <button
-                    key={u.id}
-                    type="button"
-                    onClick={() =>
-                      set(
-                        'assigneeIds',
-                        active ? draft.assigneeIds.filter((id) => id !== u.id) : [...draft.assigneeIds, u.id],
-                      )
-                    }
-                    className={`flex items-center gap-1.5 rounded-full border py-1 pr-2.5 pl-1 text-xs font-bold transition ${
-                      active ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'
-                    }`}
-                  >
-                    <Avatar user={u} size={20} />
-                    {u.name}
-                  </button>
-                )
-              })}
-            </div>
-          </Field>
+          <FieldDiv label="Responsables">
+            <PeopleSelect value={draft.assigneeIds} onChange={(ids) => set('assigneeIds', ids)} />
+          </FieldDiv>
 
           <Field label="Descripción">
-            <textarea
+            <MentionField
+              multiline
               rows={3}
               value={draft.description ?? ''}
-              onChange={(e) => set('description', e.target.value)}
-              placeholder="Detalles de la acción a realizar…"
+              onChange={(v) => set('description', v)}
+              placeholder="Detalles de la acción a realizar… (con @ mencionás a alguien)"
               className={`${inputCls} resize-none`}
             />
           </Field>

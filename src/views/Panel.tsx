@@ -6,17 +6,36 @@ import type { Task } from '../types'
 import { isOverdue, longDate, toKey, todayKey, weekDays } from '../lib/utils'
 import { useApp } from '../state/AppContext'
 import { Avatar, AvatarStack } from '../components/Avatar'
+import ConfiguracionGerente from '../components/ConfiguracionGerente'
+import TareasModal from '../components/TareasModal'
 import { MiembrosEquipo } from './Equipo'
+
+/** Qué grupo de tareas muestra el pop-up (un número, un proyecto, una persona, un hito). */
+interface GrupoTareas {
+  titulo: string
+  subtitulo?: string
+  color?: string
+  filtro: (t: Task) => boolean
+  nuevaTarea?: Partial<Task>
+}
 
 /**
  * Panel PM del Gerente (Dirección A del mockup aprobado): centro de mando
  * con KPIs, salud por proyecto, cola de decisiones, radar de atrasos,
- * carga del equipo, hitos en el horizonte y actividad reciente.
+ * carga del equipo, hitos en el horizonte y actividad reciente. Cada número,
+ * proyecto, persona e hito abre sus tareas en Kanban o calendario.
  * Solo Gerentes con FEATURE_PANEL. El equipo no ve nada de esto.
  */
-export default function Panel({ onEditTask }: { onEditTask: (t: Task) => void }) {
+export default function Panel({
+  onEditTask,
+  onNewTask,
+}: {
+  onEditTask: (t: Task) => void
+  onNewTask: (defaults: Partial<Task>) => void
+}) {
   const { tasks, projects, users, hitos, minutes, taskComments, reload } = useApp()
   const [refreshing, setRefreshing] = useState(false)
+  const [grupo, setGrupo] = useState<GrupoTareas | null>(null)
 
   const hoy = todayKey()
   const semana = useMemo(() => weekDays(new Date()).map(toKey), [])
@@ -141,6 +160,9 @@ export default function Panel({ onEditTask }: { onEditTask: (t: Task) => void })
             <p className="mt-0.5 text-sm font-semibold text-slate-400 capitalize">
               {longDate(new Date())} · todo el equipo, todos los proyectos
             </p>
+            <p className="mt-0.5 text-[11px] font-semibold text-slate-400">
+              Tocá cualquier número, proyecto, persona o hito para ver sus tareas en Kanban o calendario.
+            </p>
           </div>
           <button
             onClick={refresh}
@@ -152,11 +174,51 @@ export default function Panel({ onEditTask }: { onEditTask: (t: Task) => void })
 
         {/* KPIs */}
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
-          <KpiTile valor={activas.length} label="Tareas activas" />
-          <KpiTile valor={completadasSemana.length} label="Completadas esta semana" accent="#34C48E" />
-          <KpiTile valor={atrasadas.length} label="Atrasadas" accent="#e5484d" />
-          <KpiTile valor={decisiones.length} label="Decisiones que me necesitan" accent="#0e4afb" destacado />
-          <KpiTile valor={comentariosSemana.length} label="Comentarios · 7 días" accent="#5AB6E8" />
+          <KpiTile
+            valor={activas.length}
+            label="Tareas activas"
+            onClick={() => setGrupo({ titulo: 'Tareas activas', filtro: (t) => t.status !== 'done' })}
+          />
+          <KpiTile
+            valor={completadasSemana.length}
+            label="Completadas esta semana"
+            accent="#34C48E"
+            onClick={() =>
+              setGrupo({
+                titulo: 'Completadas esta semana',
+                filtro: (t) =>
+                  !!t.completedAt && t.completedAt.slice(0, 10) >= semana[0] && t.completedAt.slice(0, 10) <= semana[6],
+              })
+            }
+          />
+          <KpiTile
+            valor={atrasadas.length}
+            label="Atrasadas"
+            accent="#e5484d"
+            onClick={() => setGrupo({ titulo: 'Tareas atrasadas', color: '#e5484d', filtro: isOverdue })}
+          />
+          <KpiTile
+            valor={decisiones.length}
+            label="Decisiones que me necesitan"
+            accent="#0e4afb"
+            destacado
+            onClick={() =>
+              setGrupo({
+                titulo: 'Decisiones que me necesitan',
+                color: '#0e4afb',
+                filtro: (t) => !!t.necesitaDecisionGg && t.status !== 'done',
+              })
+            }
+          />
+          <KpiTile
+            valor={comentariosSemana.length}
+            label="Comentarios · 7 días"
+            accent="#5AB6E8"
+            onClick={() => {
+              const comentadas = new Set(comentariosSemana.map((c) => c.taskId))
+              setGrupo({ titulo: 'Tareas comentadas en los últimos 7 días', filtro: (t) => comentadas.has(t.id) })
+            }}
+          />
         </div>
 
         {/* Fila 1: salud por proyecto + decisiones */}
@@ -168,7 +230,19 @@ export default function Panel({ onEditTask }: { onEditTask: (t: Task) => void })
             </div>
             <div className="space-y-3.5">
               {salud.map(({ p, total, done, atras, proximoHito, semaforo }) => (
-                <div key={p.id} className="grid grid-cols-[minmax(0,10rem)_1fr_auto] items-center gap-3">
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() =>
+                    setGrupo({
+                      titulo: p.name,
+                      color: p.color,
+                      filtro: (t) => t.projectId === p.id,
+                      nuevaTarea: { projectId: p.id },
+                    })
+                  }
+                  className="-mx-2 grid w-[calc(100%+1rem)] grid-cols-[minmax(0,10rem)_1fr_auto] items-center gap-3 rounded-lg px-2 py-1 text-left transition hover:bg-slate-50"
+                >
                   <span className="flex min-w-0 items-center gap-2 text-sm font-bold text-slate-600">
                     <i className="size-2.5 shrink-0 rounded-full" style={{ background: p.color }} />
                     <span className="truncate">{p.name}</span>
@@ -195,7 +269,7 @@ export default function Panel({ onEditTask }: { onEditTask: (t: Task) => void })
                     )}
                     <i className="size-3 shrink-0 rounded-full" style={{ background: semaforo }} title="Semáforo: rojo 3+ atrasadas, ámbar 1-2, verde al día" />
                   </span>
-                </div>
+                </button>
               ))}
               {salud.length === 0 && (
                 <p className="py-4 text-center text-sm font-semibold text-slate-300">Todavía no hay proyectos.</p>
@@ -310,7 +384,19 @@ export default function Panel({ onEditTask }: { onEditTask: (t: Task) => void })
                 <p className="py-5 text-center text-sm font-semibold text-slate-300">Sin tareas agendadas esta semana.</p>
               )}
               {carga.map(({ u, total, done, doing, todo, atras }) => (
-                <div key={u.id} className="flex items-center gap-3">
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() =>
+                    setGrupo({
+                      titulo: u.name,
+                      subtitulo: 'Tareas donde es responsable',
+                      color: u.color,
+                      filtro: (t) => t.assigneeIds.includes(u.id),
+                    })
+                  }
+                  className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-3 rounded-lg px-2 py-1 text-left transition hover:bg-slate-50"
+                >
                   <span className="flex w-28 shrink-0 items-center gap-2">
                     <Avatar user={u} size={24} />
                     <span className="truncate text-sm font-bold text-slate-600">{u.name}</span>
@@ -326,7 +412,7 @@ export default function Panel({ onEditTask }: { onEditTask: (t: Task) => void })
                     {total}
                     {atras > 0 && <span className="text-[#e5484d]"> · {atras} atras.</span>}
                   </span>
-                </div>
+                </button>
               ))}
             </div>
             <p className="mt-3 border-t border-slate-100 pt-2 text-[10px] font-bold text-slate-400">
@@ -348,9 +434,20 @@ export default function Panel({ onEditTask }: { onEditTask: (t: Task) => void })
               <div className="absolute top-[69px] left-0 size-[15px] rounded-full border-[3px] border-white bg-blue-600 shadow-[0_0_0_1px_#e2e8f0]" />
               <span className="absolute top-[98px] left-0 text-[10px] font-extrabold text-blue-600">HOY</span>
               {hitosHorizonte.map(({ h, pos, color }, i) => (
-                <div
+                <button
                   key={h.id}
-                  className={`absolute flex w-[120px] items-center gap-1 ${
+                  type="button"
+                  title="Ver las tareas de este hito"
+                  onClick={() =>
+                    setGrupo({
+                      titulo: `🚩 ${h.name}`,
+                      subtitulo: projectById.get(h.projectId)?.name,
+                      color,
+                      filtro: (t) => t.hitoId === h.id,
+                      nuevaTarea: { projectId: h.projectId, hitoId: h.id },
+                    })
+                  }
+                  className={`absolute flex w-[120px] items-center gap-1 rounded-lg transition hover:bg-slate-50 ${
                     i % 2 === 0 ? 'bottom-[61px] flex-col' : 'top-[70px] flex-col-reverse'
                   }`}
                   style={{ left: `calc(${pos}% - 60px)` }}
@@ -360,7 +457,7 @@ export default function Panel({ onEditTask }: { onEditTask: (t: Task) => void })
                     {format(parseISO(h.date!), 'EEE d MMM', { locale: es })}
                   </span>
                   <i className="size-[13px] shrink-0 rounded-full border-[3px] border-white shadow-[0_0_0_1px_#e2e8f0]" style={{ background: color }} />
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -407,20 +504,54 @@ export default function Panel({ onEditTask }: { onEditTask: (t: Task) => void })
           </p>
         </section>
 
+        <ConfiguracionGerente />
+
         {/* Gestión de miembros (lo que antes vivía en la pestaña Equipo) */}
         <MiembrosEquipo />
       </div>
+
+      {grupo && (
+        <TareasModal
+          titulo={grupo.titulo}
+          subtitulo={grupo.subtitulo}
+          color={grupo.color}
+          filtro={grupo.filtro}
+          nuevaTarea={grupo.nuevaTarea}
+          onClose={() => setGrupo(null)}
+          onEditTask={onEditTask}
+          onNewTask={onNewTask}
+        />
+      )}
     </div>
   )
 }
 
-function KpiTile({ valor, label, accent = '#334155', destacado }: { valor: number; label: string; accent?: string; destacado?: boolean }) {
+function KpiTile({
+  valor,
+  label,
+  accent = '#334155',
+  destacado,
+  onClick,
+}: {
+  valor: number
+  label: string
+  accent?: string
+  destacado?: boolean
+  onClick: () => void
+}) {
   return (
-    <div className={`rounded-xl bg-white p-4 shadow-sm ${destacado ? 'border-2 border-blue-300' : 'border border-slate-200'}`}>
+    <button
+      type="button"
+      onClick={onClick}
+      title="Ver estas tareas en Kanban o calendario"
+      className={`rounded-xl bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+        destacado ? 'border-2 border-blue-300' : 'border border-slate-200 hover:border-blue-200'
+      }`}
+    >
       <p className="text-2xl font-black" style={{ color: accent }}>
         {valor}
       </p>
       <p className="text-[11px] leading-tight font-extrabold tracking-wide text-slate-400 uppercase">{label}</p>
-    </div>
+    </button>
   )
 }

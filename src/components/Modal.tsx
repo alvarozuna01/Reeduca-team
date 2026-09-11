@@ -37,5 +37,18 @@ export function Field({ label, children }: { label: string; children: ReactNode 
   )
 }
 
+/**
+ * Como Field, pero sin <label>: para campos con desplegables propios
+ * (un <label> reenvía los clics sueltos al primer botón y cerraría la lista).
+ */
+export function FieldDiv({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div>
+      <span className="mb-1 block text-[11px] font-extrabold tracking-wide text-slate-400 uppercase">{label}</span>
+      {children}
+    </div>
+  )
+}
+
 export const inputCls =
   'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 placeholder:text-slate-300 focus:border-blue-400 focus:outline-none'

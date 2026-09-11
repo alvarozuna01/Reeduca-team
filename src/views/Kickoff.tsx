@@ -1,13 +1,13 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { addDays, format, startOfWeek } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { CheckCircle2, ChevronDown, Flag, Lightbulb, MessageCircle, Presentation, RefreshCw, Rocket, Scale } from 'lucide-react'
+import { CheckCircle2, ChevronDown, Flag, MessageCircle, Presentation, RefreshCw, Rocket, Scale } from 'lucide-react'
 import { useApp } from '../state/AppContext'
 import KickoffReunion, { type BloqueKickoff } from '../components/KickoffReunion'
 
 /**
  * Kickoff semanal (Módulo C) — FASE 3: MAQUETA con datos de mentira.
- * La forma es real (6 bloques, modo reunión, briefing personal); los datos
+ * La forma es real (5 bloques, modo reunión, briefing personal); los datos
  * y el guardado llegan en las Fases 7 y 8. Detrás de FEATURE_KICKOFF.
  */
 
@@ -82,7 +82,7 @@ export default function Kickoff() {
                 vista === 'gg' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
-              Mi vista (los 6 bloques)
+              Mi vista (los 5 bloques)
             </button>
             <button
               onClick={() => setVista('briefing')}
@@ -145,7 +145,7 @@ function FilaHecha({ texto }: { texto: string }) {
   )
 }
 
-/* ---------- Los 6 bloques con datos de mentira ---------- */
+/* ---------- Los 5 bloques con datos de mentira ---------- */
 
 function bloquesDeMentira(): BloqueKickoff[] {
   return [
@@ -303,37 +303,6 @@ function bloquesDeMentira(): BloqueKickoff[] {
           <p className="pt-2 text-[11px] font-semibold text-slate-400">
             La misma cola del Panel: todo junto y en un solo momento, en vez de suelto por WhatsApp toda la semana.
           </p>
-        </div>
-      ),
-    },
-    {
-      numero: 6,
-      titulo: 'Consejo de la semana',
-      minutos: 2,
-      contenido: (
-        <div className="rounded-xl bg-blue-50/60 p-4">
-          <p className="flex items-start gap-2.5 text-sm leading-relaxed font-bold text-slate-700">
-            <Lightbulb size={18} className="mt-0.5 shrink-0 fill-amber-200 text-amber-500" />
-            «Cuando delegues, escribí en una frase cómo se ve “terminado”. La mitad de los retrabajos de agosto fueron
-            por eso.»
-          </p>
-          <p className="mt-1.5 pl-7 text-xs font-semibold text-slate-400">— te lo dijo Guillermo · hace 3 semanas</p>
-          <div className="mt-3 flex gap-2 pl-7">
-            <button
-              disabled
-              title="Se activa en la Fase 6"
-              className="cursor-not-allowed rounded-lg bg-white px-3 py-1.5 text-xs font-extrabold text-slate-300 shadow-sm"
-            >
-              Sigue vigente
-            </button>
-            <button
-              disabled
-              title="Se activa en la Fase 6"
-              className="cursor-not-allowed rounded-lg bg-white px-3 py-1.5 text-xs font-extrabold text-slate-300 shadow-sm"
-            >
-              Ya no aplica
-            </button>
-          </div>
         </div>
       ),
     },

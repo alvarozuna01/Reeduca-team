@@ -1,11 +1,24 @@
 import { useMemo, useState } from 'react'
-import { CheckCircle2, Lightbulb, NotebookPen, Pin, Star, Sun, X } from 'lucide-react'
-import { FEATURE_KICKOFF, type Task } from '../types'
-import { longDate, todayKey, uid } from '../lib/utils'
+import { addDays, formatDistanceToNow, parseISO } from 'date-fns'
+import { es } from 'date-fns/locale'
+import { AtSign, CheckCircle2, FileText, MessageCircle, NotebookPen, Pin, Star, Sun, X } from 'lucide-react'
+import { FEATURE_COMENTARIOS, type Task, type User } from '../types'
+import { longDate, toKey, todayKey, uid } from '../lib/utils'
+import { mencionaA } from '../lib/menciones'
 import { useApp } from '../state/AppContext'
 import { AvatarStack } from '../components/Avatar'
 import { CommentBadge } from '../components/Comments'
+import { TextoConMenciones } from '../components/Menciones'
 import { ImportancePill, Stars, UrgentPill } from '../components/Stars'
+
+/** Una mención a mí: en un comentario (con autor y hora) o en la descripción de una tarea. */
+interface MencionAMi {
+  clave: string
+  task: Task
+  texto: string
+  autor?: User
+  cuando?: string
+}
 
 export default function MiDia({
   onEdit,
@@ -14,7 +27,8 @@ export default function MiDia({
   onEdit: (t: Task) => void
   onOpenNote: (noteId: string) => void
 }) {
-  const { tasks, projects, users, notes, noteFolders, pins, currentUser, isAdmin, hasFlag, upsertTask, upsertPin, removePin } = useApp()
+  const { tasks, projects, users, notes, noteFolders, pins, taskComments, currentUser, hasFlag, upsertTask, upsertPin, removePin } =
+    useApp()
   const me = currentUser!
   const projectById = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects])
   const [reminder, setReminder] = useState('')
@@ -53,6 +67,29 @@ export default function MiDia({
   const pendingToday = today.filter((t) => t.status !== 'done').length
 
   const toggleDone = (t: Task) => upsertTask({ ...t, status: t.status === 'done' ? 'todo' : 'done' })
+
+  // Dónde me arrobaron: comentarios de otros de las últimas 2 semanas, y
+  // descripciones de tareas abiertas. Así el mencionado se entera sin avisos.
+  const comentariosOn = hasFlag(FEATURE_COMENTARIOS)
+  const menciones = useMemo<MencionAMi[]>(() => {
+    const taskById = new Map(tasks.map((t) => [t.id, t]))
+    const corte = toKey(addDays(parseISO(todayKey()), -14))
+    const deComentarios: MencionAMi[] = comentariosOn
+      ? taskComments
+          .filter((c) => c.userId !== me.id && c.createdAt.slice(0, 10) >= corte && mencionaA(c.text, me.id, users))
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+          .flatMap((c) => {
+            const task = taskById.get(c.taskId)
+            return task
+              ? [{ clave: c.id, task, texto: c.text, autor: users.find((u) => u.id === c.userId), cuando: c.createdAt }]
+              : []
+          })
+      : []
+    const deDescripciones: MencionAMi[] = tasks
+      .filter((t) => t.status !== 'done' && mencionaA(t.description, me.id, users))
+      .map((t) => ({ clave: `d-${t.id}`, task: t, texto: t.description! }))
+    return [...deComentarios, ...deDescripciones].slice(0, 8)
+  }, [comentariosOn, taskComments, tasks, users, me.id])
 
   return (
     <div className="h-full overflow-y-auto">
@@ -170,50 +207,50 @@ export default function MiDia({
           </section>
         </div>
 
-        {/* Consejo de la semana (FASE 3: MAQUETA — la rotación real llega en la Fase 6) */}
-        {isAdmin && hasFlag(FEATURE_KICKOFF) && (
+        {/* Te mencionaron: aparece solo si alguien te arrobó */}
+        {menciones.length > 0 && (
           <section className="mt-4 rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
               <span className="grid size-7 place-items-center rounded-lg bg-amber-100">
-                <Lightbulb size={15} className="fill-amber-400 text-amber-600" />
+                <AtSign size={15} className="text-amber-600" />
               </span>
               <div>
-                <h3 className="leading-tight font-extrabold text-slate-700">Consejo de la semana</h3>
-                <p className="text-[11px] font-semibold text-slate-400">Uno por semana, solo para Gerentes</p>
+                <h3 className="leading-tight font-extrabold text-slate-700">Te mencionaron</h3>
+                <p className="text-[11px] font-semibold text-slate-400">
+                  Comentarios de las últimas 2 semanas y descripciones de tareas abiertas donde aparece tu @
+                </p>
               </div>
-              <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-extrabold text-amber-700 uppercase">
-                Maqueta
-              </span>
             </div>
-            <div className="px-4 py-3.5">
-              <p className="text-sm leading-relaxed font-bold text-slate-700">
-                «Cuando delegues, escribí en una frase cómo se ve “terminado”. La mitad de los retrabajos de agosto
-                fueron por eso.»
-              </p>
-              <p className="mt-1 text-xs font-semibold text-slate-400">— te lo dijo Guillermo · hace 3 semanas</p>
-              <div className="mt-3 flex items-center gap-2">
+            <div className="divide-y divide-slate-50 p-1.5">
+              {menciones.map((m) => (
                 <button
-                  disabled
-                  title="Se activa en la Fase 6"
-                  className="cursor-not-allowed rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-extrabold text-slate-300"
+                  key={m.clave}
+                  onClick={() => onEdit(m.task)}
+                  className="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-slate-50"
                 >
-                  Sigue vigente
+                  {m.autor ? (
+                    <MessageCircle size={16} className="mt-0.5 shrink-0 text-blue-500" />
+                  ) : (
+                    <FileText size={16} className="mt-0.5 shrink-0 text-slate-400" />
+                  )}
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[11px] font-semibold text-slate-400">
+                      {m.autor ? (
+                        <>
+                          <b className="text-slate-600">{m.autor.name}</b> te mencionó en{' '}
+                        </>
+                      ) : (
+                        'En la descripción de '
+                      )}
+                      <b className="text-slate-600">{m.task.title}</b>
+                      {m.cuando && ` · ${formatDistanceToNow(parseISO(m.cuando), { addSuffix: true, locale: es })}`}
+                    </span>
+                    <span className="mt-0.5 line-clamp-2 block text-sm font-semibold text-slate-600">
+                      <TextoConMenciones texto={m.texto} />
+                    </span>
+                  </span>
                 </button>
-                <button
-                  disabled
-                  title="Se activa en la Fase 6"
-                  className="cursor-not-allowed rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-extrabold text-slate-300"
-                >
-                  Ya no aplica
-                </button>
-                <button
-                  disabled
-                  title="Se activa en la Fase 6"
-                  className="ml-auto cursor-not-allowed text-xs font-bold text-slate-300"
-                >
-                  Ver todos
-                </button>
-              </div>
+              ))}
             </div>
           </section>
         )}

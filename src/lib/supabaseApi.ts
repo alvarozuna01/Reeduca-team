@@ -193,6 +193,7 @@ const rowToProject = (r: any): Project => ({
   name: r.name,
   color: r.color,
   description: r.description ?? undefined,
+  position: r.position ?? 0,
 })
 
 const projectToRow = (p: Project) => ({
@@ -200,6 +201,7 @@ const projectToRow = (p: Project) => ({
   name: p.name,
   color: p.color,
   description: p.description || null,
+  position: p.position ?? 0,
 })
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -424,7 +426,14 @@ export const supabaseApi: Api = {
   },
 
   async saveProject(p) {
-    check((await supabase!.from('projects').upsert(projectToRow(p))).error)
+    const { error } = await supabase!.from('projects').upsert(projectToRow(p))
+    if (error && error.message.includes('position')) {
+      // Base sin la migración del orden de proyectos todavía: guardar sin ese campo.
+      const { position: _pos, ...rest } = projectToRow(p)
+      check((await supabase!.from('projects').upsert(rest)).error)
+      return
+    }
+    check(error)
   },
 
   async deleteProject(id) {
