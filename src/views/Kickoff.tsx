@@ -1,75 +1,301 @@
-import { useMemo, useState, type ReactNode } from 'react'
-import { addDays, format, startOfWeek } from 'date-fns'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { addDays, format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { CheckCircle2, ChevronDown, Flag, MessageCircle, Presentation, RefreshCw, Rocket, Scale } from 'lucide-react'
+import {
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardList,
+  Flag,
+  Lock,
+  MessageCircle,
+  Plus,
+  Presentation,
+  RefreshCw,
+  Rocket,
+  Scale,
+  Send,
+  Share2,
+  Trash2,
+  Users,
+} from 'lucide-react'
+import type { Kickoff as KickoffRow, KickoffNotas, Minute, Task } from '../types'
+import { toKey, uid } from '../lib/utils'
+import { calcularBloques, fechaLarga, lunesObjetivo, resumenParaMinuta, semanaDe, type BloquesKickoff } from '../lib/kickoffData'
 import { useApp } from '../state/AppContext'
+import { Avatar, AvatarStack } from '../components/Avatar'
 import KickoffReunion, { type BloqueKickoff } from '../components/KickoffReunion'
 
 /**
- * Kickoff semanal (Módulo C) — FASE 3: MAQUETA con datos de mentira.
- * La forma es real (5 bloques, modo reunión, briefing personal); los datos
- * y el guardado llegan en las Fases 7 y 8. Detrás de FEATURE_KICKOFF.
+ * Kickoff semanal (Módulo C) con datos reales: los cinco bloques se calculan
+ * al abrir la pantalla, el modo reunión se proyecta, y al cerrar se genera la
+ * minuta con los presentes, el resumen y las acciones acordadas — así el lunes
+ * siguiente el bloque 2 existe solo. Detrás de FEATURE_KICKOFF.
  */
-
-/** Lunes que corresponde: lun-jue muestra el de esta semana; vie-dom, el próximo. */
-function lunesObjetivo(hoy: Date): Date {
-  const lunes = startOfWeek(hoy, { weekStartsOn: 1 })
-  const dia = hoy.getDay() // 0 dom … 6 sáb
-  return dia === 5 || dia === 6 || dia === 0 ? addDays(lunes, 7) : lunes
-}
-
-export default function Kickoff() {
-  const { isAdmin } = useApp()
-  const [vista, setVista] = useState<'gg' | 'briefing'>(isAdmin ? 'gg' : 'briefing')
+export default function Kickoff({
+  onEditTask,
+  onIrAMinutas,
+}: {
+  onEditTask: (t: Task) => void
+  onIrAMinutas: () => void
+}) {
+  const {
+    isAdmin,
+    users,
+    tasks,
+    hitos,
+    projects,
+    minutes,
+    kickoffs,
+    kickoffBriefings,
+    upsertKickoff,
+    upsertMinute,
+    reload,
+  } = useApp()
+  const objetivo = lunesObjetivo()
+  const [fecha, setFecha] = useState(objetivo)
+  const [vista, setVista] = useState<'gg' | 'mio'>(isAdmin ? 'gg' : 'mio')
   const [reunion, setReunion] = useState(false)
+  const [refrescando, setRefrescando] = useState(false)
+  const [nuevaAccion, setNuevaAccion] = useState('')
+  const [lineas, setLineas] = useState<Record<string, string>>({})
+  const creando = useRef<string | null>(null)
 
-  const lunes = useMemo(() => lunesObjetivo(new Date()), [])
-  const fechaLegible = format(lunes, "EEEE d 'de' MMMM", { locale: es })
+  const kickoff = kickoffs.find((k) => k.fecha === fecha)
+  const notas: KickoffNotas = kickoff?.notas ?? {}
+  const cerrado = kickoff?.estado === 'cerrado'
+  const puedeEditar = isAdmin && !cerrado
 
-  const bloques = useMemo(() => bloquesDeMentira(), [])
+  // El lunes que corresponde se prepara solo al abrir la pantalla (sin cron).
+  useEffect(() => {
+    if (kickoff || fecha !== objetivo || creando.current === fecha) return
+    creando.current = fecha
+    upsertKickoff({ id: uid(), fecha, estado: 'preparado', notas: {} })
+  }, [kickoff, fecha, objetivo, upsertKickoff])
+
+  // Se calcula al vuelo con lo que ya está en la base (sin procesos programados).
+  const bloques = kickoff
+    ? calcularBloques({
+        kickoff,
+        kickoffs,
+        minutes,
+        tasks,
+        users,
+        hitos,
+        briefings: kickoffBriefings,
+        colorDeProyecto: (id) => projects.find((p) => p.id === id)?.color ?? '#94A3B8',
+      })
+    : null
+
+  const guardarNotas = (patch: Partial<KickoffNotas>) => {
+    if (!kickoff) return
+    upsertKickoff({ ...kickoff, notas: { ...kickoff.notas, ...patch } })
+  }
+
+  /** La línea de la semana de cada uno se escribe en vivo y se guarda sola. */
+  const escribirLinea = (userId: string, texto: string) => setLineas((l) => ({ ...l, [userId]: texto }))
+
+  useEffect(() => {
+    if (!kickoff) return
+    const pendientes = Object.entries(lineas).filter(([id, txt]) => (kickoff.notas.bloque3?.[id] ?? '') !== txt)
+    if (!pendientes.length) return
+    const t = window.setTimeout(
+      () =>
+        upsertKickoff({
+          ...kickoff,
+          notas: { ...kickoff.notas, bloque3: { ...(kickoff.notas.bloque3 ?? {}), ...Object.fromEntries(pendientes) } },
+        }),
+      700,
+    )
+    return () => window.clearTimeout(t)
+  }, [lineas, kickoff, upsertKickoff])
+  const lineaDe = (userId: string, delBriefing?: string) =>
+    lineas[userId] ?? notas.bloque3?.[userId] ?? delBriefing ?? ''
+
+  const agregarAccion = () => {
+    const texto = nuevaAccion.trim()
+    if (!texto) return
+    guardarNotas({ acciones: [...(notas.acciones ?? []), { id: uid(), texto }] })
+    setNuevaAccion('')
+  }
+
+  const refrescar = () => {
+    setRefrescando(true)
+    reload()
+    window.setTimeout(() => setRefrescando(false), 800)
+  }
+
+  const abrirReunion = () => {
+    if (kickoff && kickoff.estado === 'preparado') upsertKickoff({ ...kickoff, estado: 'en_curso' })
+    setReunion(true)
+  }
+
+  const cerrarKickoff = () => {
+    if (!kickoff || !bloques) return
+    const acciones = (notas.acciones ?? []).filter((a) => a.texto.trim())
+    const aviso = acciones.length
+      ? `Se va a generar la minuta con el resumen, los presentes y ${acciones.length} acción${acciones.length === 1 ? '' : 'es'} acordada${acciones.length === 1 ? '' : 's'}.`
+      : 'Ojo: no anotaste ninguna acción acordada. El lunes que viene el bloque 2 va a estar vacío.'
+    if (!confirm(`¿Cerrar el kickoff?\n\n${aviso}`)) return
+    const minuta: Minute = {
+      id: uid(),
+      title: `Kickoff semanal · ${fechaLarga(kickoff.fecha)}`,
+      date: kickoff.fecha,
+      participantIds: notas.presentes?.length ? notas.presentes : bloques.semana.map((s) => s.user.id),
+      summary: resumenParaMinuta(bloques, notas, users),
+      actions: acciones.map((a) => ({ id: a.id, text: a.texto, origen: 'manual' as const })),
+      estadoProcesamiento: 'sin_transcripcion',
+    }
+    upsertMinute(minuta)
+    upsertKickoff({ ...kickoff, estado: 'cerrado', minutaId: minuta.id })
+    setReunion(false)
+  }
+
+  const togglePresente = (userId: string) => {
+    const actuales = notas.presentes ?? []
+    guardarNotas({
+      presentes: actuales.includes(userId) ? actuales.filter((x) => x !== userId) : [...actuales, userId],
+    })
+  }
+
+  const irA = (dias: number) => {
+    setFecha(toKey(addDays(parseISO(fecha), dias)))
+    setLineas({})
+  }
+
+  if (!kickoff || !bloques) {
+    return (
+      <div className="grid h-full place-items-center p-6 text-center">
+        <div>
+          <Rocket size={34} className="mx-auto text-slate-200" />
+          <p className="mt-3 text-lg font-black text-slate-700">Kickoff del {fechaLarga(fecha)}</p>
+          <p className="mt-1 text-sm font-semibold text-slate-400">
+            {fecha === objetivo
+              ? 'Preparándolo…'
+              : isAdmin
+                ? 'Este lunes todavía no está preparado.'
+                : 'Tu Gerente todavía no preparó este lunes. Cuando lo abra vas a poder dejar tus respuestas.'}
+          </p>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <button onClick={() => irA(-7)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-extrabold text-slate-500 hover:bg-slate-50">
+              ← Lunes anterior
+            </button>
+            <button onClick={() => irA(7)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-extrabold text-slate-500 hover:bg-slate-50">
+              Lunes siguiente →
+            </button>
+            {isAdmin && fecha !== objetivo && (
+              <button
+                onClick={() => upsertKickoff({ id: uid(), fecha, estado: 'preparado', notas: {} })}
+                className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-extrabold text-white hover:bg-blue-700"
+              >
+                Preparar este lunes
+              </button>
+            )}
+            {fecha !== objetivo && (
+              <button onClick={() => setFecha(objetivo)} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-extrabold text-blue-700 hover:bg-blue-100">
+                Ir al lunes que corresponde
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const bloquesUI = construirBloques({
+    bloques,
+    puedeEditar,
+    lineaDe,
+    escribirLinea,
+    onEditTask,
+    kickoffId: kickoff.id,
+  })
+
+  const estadoChip =
+    kickoff.estado === 'cerrado'
+      ? { texto: 'Cerrado', clase: 'bg-emerald-100 text-emerald-700' }
+      : kickoff.estado === 'en_curso'
+        ? { texto: 'En curso', clase: 'bg-amber-100 text-amber-700' }
+        : { texto: 'Preparado', clase: 'bg-blue-100 text-blue-700' }
+
+  const pieReunion = puedeEditar ? (
+    <div className="mx-auto flex max-w-3xl items-center gap-2">
+      <input
+        value={nuevaAccion}
+        onChange={(e) => setNuevaAccion(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && agregarAccion()}
+        placeholder="Acción acordada (empezá con un verbo: Enviar, Definir, Confirmar…)"
+        className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none placeholder:text-slate-300 focus:border-blue-400"
+      />
+      <button
+        onClick={agregarAccion}
+        disabled={!nuevaAccion.trim()}
+        className="flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2.5 text-sm font-extrabold text-white hover:bg-blue-700 disabled:opacity-40"
+      >
+        <Plus size={15} /> Acordado
+      </button>
+      <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-extrabold text-slate-500">
+        {(notas.acciones ?? []).length}
+      </span>
+    </div>
+  ) : undefined
 
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-4xl space-y-4 px-4 py-5">
-        <p className="flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-extrabold text-amber-700">
-          MAQUETA · Todos los datos son de mentira. Es para decidir la forma: los datos reales llegan en las próximas
-          fases.
-        </p>
-
+        {/* Encabezado */}
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="flex items-center gap-2 text-2xl font-black text-slate-800">
               <Rocket size={22} className="text-blue-600" /> Kickoff semanal
             </h2>
-            <p className="mt-0.5 text-sm font-semibold text-slate-400 capitalize">
-              {fechaLegible} · 8:30 · 30 minutos
-              <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-extrabold tracking-wide text-blue-700 uppercase normal-case">
-                Preparado
+            <p className="mt-0.5 flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-400">
+              <button onClick={() => irA(-7)} title="Lunes anterior" className="rounded-lg p-1 hover:bg-slate-100">
+                <ChevronLeft size={15} />
+              </button>
+              <span className="capitalize">{fechaLarga(fecha)}</span>
+              <button onClick={() => irA(7)} title="Lunes siguiente" className="rounded-lg p-1 hover:bg-slate-100">
+                <ChevronRight size={15} />
+              </button>
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold tracking-wide uppercase ${estadoChip.clase}`}>
+                {estadoChip.texto}
               </span>
+              {fecha !== objetivo && (
+                <button onClick={() => setFecha(objetivo)} className="text-[11px] font-extrabold text-blue-600 hover:text-blue-700">
+                  ir al lunes que corresponde
+                </button>
+              )}
             </p>
           </div>
           {isAdmin && vista === 'gg' && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
-                disabled
-                title="Se activa en la Fase 7 (recalcula los bloques)"
-                className="flex cursor-not-allowed items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-300"
+                onClick={refrescar}
+                className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-blue-600 shadow-sm transition hover:border-blue-200 hover:bg-blue-50"
               >
-                <RefreshCw size={13} /> Actualizar
+                <RefreshCw size={13} className={refrescando ? 'animate-spin' : ''} /> Actualizar
               </button>
               <button
-                onClick={() => setReunion(true)}
+                onClick={abrirReunion}
                 className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-extrabold text-white shadow-sm transition hover:bg-blue-700"
               >
                 <Presentation size={14} /> Modo reunión
               </button>
-              <button
-                disabled
-                title="Se activa en la Fase 7 (genera la minuta automáticamente)"
-                className="flex cursor-not-allowed items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-300"
-              >
-                Cerrar kickoff
-              </button>
+              {cerrado ? (
+                <button
+                  onClick={onIrAMinutas}
+                  className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-extrabold text-emerald-700 hover:bg-emerald-100"
+                >
+                  <ClipboardList size={14} /> Ver la minuta
+                </button>
+              ) : (
+                <button
+                  onClick={cerrarKickoff}
+                  className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-50"
+                >
+                  <CheckCircle2 size={14} /> Cerrar kickoff
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -85,19 +311,45 @@ export default function Kickoff() {
               Mi vista (los 5 bloques)
             </button>
             <button
-              onClick={() => setVista('briefing')}
+              onClick={() => setVista('mio')}
               className={`rounded-md px-3 py-1.5 text-xs font-extrabold transition ${
-                vista === 'briefing' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'
+                vista === 'mio' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
-              Briefing personal (ejemplo)
+              Mi briefing
             </button>
           </div>
         )}
 
         {vista === 'gg' ? (
           <div className="space-y-4">
-            {bloques.map((b) => (
+            {/* Presentes */}
+            <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="flex items-center gap-1.5 text-[11px] font-extrabold tracking-wide text-slate-400 uppercase">
+                <Users size={12} /> Presentes {notas.presentes?.length ? `· ${notas.presentes.length}` : ''}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {users.map((u) => {
+                  const activo = (notas.presentes ?? []).includes(u.id)
+                  return (
+                    <button
+                      key={u.id}
+                      type="button"
+                      disabled={!puedeEditar}
+                      onClick={() => togglePresente(u.id)}
+                      title={u.name}
+                      className={`rounded-full transition disabled:cursor-not-allowed ${
+                        activo ? 'ring-2 ring-blue-400 ring-offset-1' : 'opacity-35 hover:opacity-70'
+                      }`}
+                    >
+                      <Avatar user={u} size={28} />
+                    </button>
+                  )
+                })}
+              </div>
+            </section>
+
+            {bloquesUI.map((b) => (
               <section key={b.numero} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <h3 className="flex items-center gap-2 font-extrabold text-slate-700">
@@ -113,98 +365,156 @@ export default function Kickoff() {
                 {b.contenido}
               </section>
             ))}
+
+            {/* Acciones acordadas hoy */}
+            <section className="rounded-xl border-2 border-blue-200 bg-white p-4 shadow-sm">
+              <p className="text-[11px] font-extrabold tracking-wide text-slate-400 uppercase">Acciones acordadas hoy</p>
+              <p className="mb-3 text-[11px] font-semibold text-slate-400">
+                Al cerrar el kickoff pasan a la minuta, y el lunes que viene aparecen en el bloque 2 si no se cumplieron.
+              </p>
+              <div className="space-y-1.5">
+                {(notas.acciones ?? []).map((a) => (
+                  <div key={a.id} className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
+                    <span className="size-1.5 shrink-0 rounded-full bg-blue-400" />
+                    <span className="min-w-0 flex-1 text-sm font-semibold text-slate-700">{a.texto}</span>
+                    {puedeEditar && (
+                      <button
+                        onClick={() => guardarNotas({ acciones: (notas.acciones ?? []).filter((x) => x.id !== a.id) })}
+                        className="shrink-0 rounded-lg p-1 text-slate-300 hover:bg-red-50 hover:text-red-500"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {!(notas.acciones ?? []).length && (
+                  <p className="py-3 text-center text-sm font-semibold text-slate-300">
+                    Todavía no anotaste ninguna acción acordada.
+                  </p>
+                )}
+              </div>
+              {puedeEditar && (
+                <div className="mt-3 flex items-center gap-2">
+                  <input
+                    value={nuevaAccion}
+                    onChange={(e) => setNuevaAccion(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && agregarAccion()}
+                    placeholder="Acción acordada (empezá con un verbo: Enviar, Definir, Confirmar…)"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none placeholder:text-slate-300 focus:border-blue-400"
+                  />
+                  <button
+                    onClick={agregarAccion}
+                    disabled={!nuevaAccion.trim()}
+                    className="flex shrink-0 items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-xs font-extrabold text-white hover:bg-blue-700 disabled:opacity-40"
+                  >
+                    <Plus size={14} /> Agregar
+                  </button>
+                </div>
+              )}
+            </section>
+
+            {cerrado && (
+              <p className="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-[11px] font-extrabold text-emerald-700">
+                <Lock size={13} /> Este kickoff está cerrado y su minuta ya está generada. Queda como registro.
+              </p>
+            )}
           </div>
         ) : (
-          <BriefingPersonalMaqueta />
+          <BriefingPersonal kickoff={kickoff} bloques={bloques} onEditTask={onEditTask} />
         )}
       </div>
 
-      {reunion && <KickoffReunion bloques={bloques} onClose={() => setReunion(false)} />}
+      {reunion && <KickoffReunion bloques={bloquesUI} pie={pieReunion} onClose={() => setReunion(false)} />}
     </div>
   )
 }
 
-/* ---------- Piezas visuales reutilizadas por las maquetas ---------- */
+/* ---------- Los cinco bloques, con los datos reales ---------- */
 
-function AvatarFicticio({ inicial, color, size = 22 }: { inicial: string; color: string; size?: number }) {
-  return (
-    <span
-      className="inline-grid shrink-0 place-items-center rounded-full font-bold text-white"
-      style={{ width: size, height: size, background: color, fontSize: size * 0.45 }}
-    >
-      {inicial}
-    </span>
-  )
-}
-
-function FilaHecha({ texto }: { texto: string }) {
-  return (
-    <p className="flex items-center gap-2 py-1 text-sm font-semibold text-slate-600">
-      <CheckCircle2 size={15} className="shrink-0 fill-emerald-100 text-emerald-500" /> {texto}
-    </p>
-  )
-}
-
-/* ---------- Los 5 bloques con datos de mentira ---------- */
-
-function bloquesDeMentira(): BloqueKickoff[] {
+function construirBloques({
+  bloques,
+  puedeEditar,
+  lineaDe,
+  escribirLinea,
+  onEditTask,
+  kickoffId,
+}: {
+  bloques: BloquesKickoff
+  puedeEditar: boolean
+  lineaDe: (userId: string, delBriefing?: string) => string
+  escribirLinea: (userId: string, texto: string) => void
+  onEditTask: (t: Task) => void
+  kickoffId: string
+}): BloqueKickoff[] {
   return [
     {
       numero: 1,
       titulo: 'Lo que se cerró la semana pasada',
       minutos: 2,
-      contenido: (
+      contenido: bloques.cerradas.length ? (
         <div className="space-y-3">
-          <div>
-            <p className="mb-1 flex items-center gap-2 text-xs font-extrabold text-slate-500">
-              <AvatarFicticio inicial="D" color="#14B8A6" /> Diana · 2
-            </p>
-            <FilaHecha texto="Visita IFD Paraguarí · grupo 2" />
-            <FilaHecha texto="Informe de visita cargado al Drive" />
-          </div>
-          <div>
-            <p className="mb-1 flex items-center gap-2 text-xs font-extrabold text-slate-500">
-              <AvatarFicticio inicial="P" color="#F97316" /> Pablo · 1
-            </p>
-            <FilaHecha texto="Escritura · Unidad 4 · 4to" />
-          </div>
-          <div>
-            <p className="mb-1 flex items-center gap-2 text-xs font-extrabold text-slate-500">
-              <AvatarFicticio inicial="M" color="#EC4899" /> Malena · 1
-            </p>
-            <FilaHecha texto="Actualizar pipeline de ventas" />
-          </div>
-          <p className="text-[11px] font-semibold text-slate-400">
-            Arranca la reunión en positivo. Se calcula con la fecha de completado, agrupado por persona.
-          </p>
+          {bloques.cerradas.map(({ user, tareas }) => (
+            <div key={user.id}>
+              <p className="mb-1 flex items-center gap-2 text-xs font-extrabold text-slate-500">
+                <Avatar user={user} size={22} /> {user.name} · {tareas.length}
+              </p>
+              {tareas.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => onEditTask(t)}
+                  className="flex w-full items-center gap-2 rounded-lg px-1 py-1 text-left text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  <CheckCircle2 size={15} className="shrink-0 fill-emerald-100 text-emerald-500" />
+                  <span className="min-w-0 flex-1 truncate">{t.title}</span>
+                </button>
+              ))}
+            </div>
+          ))}
         </div>
+      ) : (
+        <p className="py-3 text-center text-sm font-semibold text-slate-300">
+          No hay tareas completadas registradas en la semana.
+          <span className="mt-1 block text-[11px]">
+            Se cuentan desde que marcan las tareas como completadas en la plataforma.
+          </span>
+        </p>
       ),
     },
     {
       numero: 2,
       titulo: 'Lo que se comprometió y no se cumplió',
       minutos: 5,
-      contenido: (
+      contenido: bloques.incumplidos.length ? (
         <div className="space-y-1">
-          {[
-            { texto: 'Enviar nota formal a los IFD', quien: 'Álvaro', inicial: 'Á', color: '#64748B', dias: 8 },
-            { texto: 'Confirmar sede de Jóvenes Conectados', quien: 'Luciana', inicial: 'L', color: '#8B5CF6', dias: 5 },
-            { texto: 'Cargar facturas de agosto al sistema', quien: 'Malena', inicial: 'M', color: '#EC4899', dias: 3 },
-          ].map((f) => (
-            <div key={f.texto} className="flex items-center gap-2.5 border-b border-slate-50 py-2 last:border-0">
-              <AvatarFicticio inicial={f.inicial} color={f.color} />
-              <span className="min-w-0 flex-1 text-sm font-bold text-slate-700">{f.texto}</span>
-              <span className="shrink-0 text-xs font-semibold text-slate-400">{f.quien}</span>
+          {bloques.incumplidos.map((i) => (
+            <div key={i.id} className="flex items-center gap-2.5 border-b border-slate-50 py-2 last:border-0">
+              <AvatarStack users={i.responsables} size={22} />
+              <span className="min-w-0 flex-1">
+                {i.task ? (
+                  <button onClick={() => onEditTask(i.task!)} className="block w-full truncate text-left text-sm font-bold text-slate-700 hover:text-blue-700">
+                    {i.texto}
+                  </button>
+                ) : (
+                  <span className="block truncate text-sm font-bold text-slate-700">{i.texto}</span>
+                )}
+                {!i.convertida && (
+                  <span className="text-[10px] font-extrabold tracking-wide text-amber-600 uppercase">
+                    nunca se convirtió en tarea
+                  </span>
+                )}
+              </span>
               <span className="shrink-0 rounded bg-[#e5484d] px-1.5 py-0.5 text-[10px] font-extrabold text-white">
-                {f.dias} días
+                {i.dias} día{i.dias === 1 ? '' : 's'}
               </span>
             </div>
           ))}
-          <p className="pt-2 text-[11px] font-semibold text-slate-400">
-            Este bloque es el que le da peso al ritual: sale de las acciones acordadas en el kickoff anterior. Si nadie
-            revisa, nadie cumple.
-          </p>
         </div>
+      ) : (
+        <p className="py-3 text-center text-sm font-semibold text-slate-300">
+          {bloques.anterior
+            ? 'Se cumplió todo lo acordado en el kickoff anterior. 🎉'
+            : 'Todavía no hay un kickoff anterior cerrado: este bloque se llena solo a partir del próximo lunes.'}
+        </p>
       ),
     },
     {
@@ -212,45 +522,52 @@ function bloquesDeMentira(): BloqueKickoff[] {
       titulo: 'La semana de cada uno',
       minutos: 12,
       contenido: (
-        <div className="space-y-2">
-          {[
-            { inicial: 'P', color: '#F97316', nombre: 'Pablo', linea: 'Cerrar la Unidad 5 y dar la capacitación del jueves en Paraguarí.', briefing: true },
-            { inicial: 'L', color: '#8B5CF6', nombre: 'Luciana', linea: 'Semana de Intercolegial: logística, prensa e inscripciones.', briefing: true },
-            { inicial: 'D', color: '#14B8A6', nombre: 'Diana', linea: '', briefing: false },
-            { inicial: 'M', color: '#EC4899', nombre: 'Malena', linea: '', briefing: false },
-            { inicial: 'Á', color: '#64748B', nombre: 'Álvaro', linea: 'Criterios de certificación MEC y reunión con Equilibrium.', briefing: true },
-          ].map((p) => (
-            <div key={p.nombre} className="flex items-start gap-2.5">
-              <AvatarFicticio inicial={p.inicial} color={p.color} size={26} />
+        <div className="space-y-3">
+          {bloques.semana.map(({ user, briefing, tareas }) => (
+            <div key={user.id} className="flex items-start gap-2.5">
+              <Avatar user={user} size={26} />
               <div className="min-w-0 flex-1">
-                <p className="flex items-center gap-2 text-xs font-extrabold text-slate-500">
-                  {p.nombre}
-                  {p.briefing ? (
+                <p className="flex flex-wrap items-center gap-2 text-xs font-extrabold text-slate-500">
+                  {user.name}
+                  {briefing?.completadoAt ? (
                     <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-extrabold text-emerald-700">
                       briefing ✓
                     </span>
                   ) : (
                     <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-extrabold text-slate-400">
-                      pendiente
+                      sin briefing
                     </span>
                   )}
+                  <span className="font-semibold text-slate-400">
+                    {tareas.length} tarea{tareas.length === 1 ? '' : 's'} esta semana
+                  </span>
                 </p>
-                {p.linea ? (
-                  <p className="mt-0.5 rounded-lg bg-slate-50 px-2.5 py-1.5 text-sm font-semibold text-slate-600">
-                    {p.linea}
-                  </p>
+                {puedeEditar ? (
+                  <input
+                    value={lineaDe(user.id, briefing?.enQueTrabajo)}
+                    onChange={(e) => escribirLinea(user.id, e.target.value)}
+                    placeholder="¿En qué trabaja esta semana? (se escribe acá en la reunión)"
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm font-semibold text-slate-700 outline-none placeholder:text-slate-300 focus:border-blue-400"
+                  />
                 ) : (
-                  <p className="mt-0.5 rounded-lg border border-dashed border-slate-200 px-2.5 py-1.5 text-sm font-semibold text-slate-300">
-                    Se completa en vivo, en la reunión…
+                  <p className="mt-1 rounded-lg bg-slate-50 px-2.5 py-1.5 text-sm font-semibold text-slate-600">
+                    {lineaDe(user.id, briefing?.enQueTrabajo) || '—'}
                   </p>
                 )}
+                {briefing?.necesitoAlgo?.trim() && (
+                  <p className="mt-1 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] font-semibold text-amber-800">
+                    Necesita: {briefing.necesitoAlgo}
+                  </p>
+                )}
+                <AnotacionesCompartidas kickoffId={kickoffId} usuarioId={user.id} />
               </div>
             </div>
           ))}
-          <p className="pt-1 text-[11px] font-semibold text-slate-400">
-            Precargado con lo que cada uno respondió en su briefing del viernes. Lo que falta se escribe en vivo: la
-            reunión no depende de que todos cumplan.
-          </p>
+          {!bloques.semana.length && (
+            <p className="py-3 text-center text-sm font-semibold text-slate-300">
+              Nadie tiene tareas con fecha esta semana. Marcá a los presentes arriba para escribir su línea igual.
+            </p>
+          )}
         </div>
       ),
     },
@@ -258,104 +575,212 @@ function bloquesDeMentira(): BloqueKickoff[] {
       numero: 4,
       titulo: 'Fechas que se vienen · próximos 14 días',
       minutos: 3,
-      contenido: (
+      contenido: bloques.fechas.length ? (
         <div className="space-y-1">
-          {[
-            { que: 'Intercolegial Cristo Rey', cuando: 'vie 11 sep', color: '#5AB6E8', hito: true },
-            { que: 'Capacitación M3 · Paraguarí', cuando: 'mar 15 sep · 13:00', color: '#F0A62B', hito: false },
-            { que: 'Cierre contable de agosto', cuando: 'jue 17 sep', color: '#8B5CF6', hito: true },
-            { que: 'Cierre de recolección IFD', cuando: 'sáb 19 sep', color: '#F0A62B', hito: true },
-          ].map((f) => (
-            <div key={f.que} className="flex items-center gap-2.5 border-b border-slate-50 py-2 last:border-0">
+          {bloques.fechas.map((f) => (
+            <div key={f.id} className="flex items-center gap-2.5 border-b border-slate-50 py-2 last:border-0">
               <Flag size={14} style={{ color: f.color }} className="shrink-0" />
-              <span className="min-w-0 flex-1 text-sm font-bold text-slate-700">{f.que}</span>
-              <span className="shrink-0 text-xs font-extrabold text-slate-500 capitalize">{f.cuando}</span>
+              <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-700">{f.titulo}</span>
+              <span className="shrink-0 text-xs font-extrabold text-slate-500 capitalize">
+                {format(parseISO(f.fecha), 'EEE d MMM', { locale: es })}
+                {f.hora ? ` · ${f.hora}` : ''}
+              </span>
               <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-extrabold text-slate-400 uppercase">
-                {f.hito ? 'hito' : 'agenda'}
+                {f.tipo}
               </span>
             </div>
           ))}
         </div>
+      ) : (
+        <p className="py-3 text-center text-sm font-semibold text-slate-300">
+          No hay hitos ni actividades con horario en los próximos 14 días.
+        </p>
       ),
     },
     {
       numero: 5,
       titulo: 'Decisiones que me necesitan',
       minutos: 6,
-      contenido: (
+      contenido: bloques.decisiones.length ? (
         <div className="space-y-1">
-          {[
-            { texto: 'Aprobar presupuesto de kits VEX 2027', dias: 6 },
-            { texto: 'Precio de inscripción del Intercolegial', dias: 2 },
-          ].map((d) => (
-            <div key={d.texto} className="flex items-center gap-2.5 border-b border-slate-50 py-2 last:border-0">
+          {bloques.decisiones.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => onEditTask(t)}
+              className="flex w-full items-center gap-2.5 border-b border-slate-50 py-2 text-left last:border-0 hover:bg-slate-50"
+            >
               <Scale size={14} className="shrink-0 text-blue-600" />
-              <span className="min-w-0 flex-1 text-sm font-bold text-slate-700">{d.texto}</span>
-              <span
-                className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-extrabold ${
-                  d.dias >= 4 ? 'bg-red-50 text-[#e5484d]' : 'bg-amber-100 text-amber-700'
-                }`}
-              >
-                hace {d.dias} días
-              </span>
-            </div>
+              <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-700">{t.title}</span>
+              {t.necesitaDecisionDesde && (
+                <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-extrabold text-amber-700">
+                  espera desde el {format(parseISO(t.necesitaDecisionDesde.slice(0, 10)), 'd MMM', { locale: es })}
+                </span>
+              )}
+            </button>
           ))}
-          <p className="pt-2 text-[11px] font-semibold text-slate-400">
-            La misma cola del Panel: todo junto y en un solo momento, en vez de suelto por WhatsApp toda la semana.
-          </p>
         </div>
+      ) : (
+        <p className="py-3 text-center text-sm font-semibold text-slate-300">
+          Nada esperando tu decisión.
+          <span className="mt-1 block text-[11px]">Se marcan desde la tarea: «¿Necesita una decisión del Gerente?».</span>
+        </p>
       ),
     },
   ]
 }
 
-/* ---------- Briefing personal (maqueta, "como lo vería Luciana") ---------- */
-
-function Tarjeta({ titulo, children }: { titulo: string; children: ReactNode }) {
+/** Las anotaciones que su dueño decidió compartir (las privadas no llegan ni acá). */
+function AnotacionesCompartidas({ kickoffId, usuarioId }: { kickoffId: string; usuarioId: string }) {
+  const { kickoffAnotaciones, currentUser } = useApp()
+  const compartidas = kickoffAnotaciones.filter(
+    (a) => a.kickoffId === kickoffId && a.usuarioId === usuarioId && a.visibilidad === 'compartida' && a.usuarioId !== currentUser?.id,
+  )
+  if (!compartidas.length) return null
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h3 className="mb-2 text-sm font-extrabold text-slate-700">{titulo}</h3>
-      {children}
-    </section>
+    <div className="mt-1.5 space-y-1">
+      {compartidas.map((a) => (
+        <p key={a.id} className="rounded-lg border border-blue-100 bg-blue-50/60 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600">
+          <MessageCircle size={11} className="mr-1 inline text-blue-500" />
+          {a.textoResaltado && <span className="font-extrabold text-slate-500">{a.textoResaltado}: </span>}
+          {a.comentario}
+        </p>
+      ))}
+    </div>
   )
 }
 
-function BriefingPersonalMaqueta() {
-  const [q1, setQ1] = useState('')
-  const [q2, setQ2] = useState('')
+/* ---------- Briefing personal (lo que ve cada uno, desde el viernes) ---------- */
+
+function BriefingPersonal({
+  kickoff,
+  bloques,
+  onEditTask,
+}: {
+  kickoff: KickoffRow
+  bloques: BloquesKickoff
+  onEditTask: (t: Task) => void
+}) {
+  const {
+    currentUser,
+    kickoffBriefings,
+    kickoffAnotaciones,
+    upsertKickoffBriefing,
+    upsertKickoffAnotacion,
+    removeKickoffAnotacion,
+  } = useApp()
+  const me = currentUser!
+  const mio = kickoffBriefings.find((b) => b.kickoffId === kickoff.id && b.usuarioId === me.id)
+  const [q1, setQ1] = useState(mio?.enQueTrabajo ?? '')
+  const [q2, setQ2] = useState(mio?.necesitoAlgo ?? '')
+  const [guardado, setGuardado] = useState(false)
+  const [nota, setNota] = useState('')
+
+  const misCerradas = bloques.cerradas.find((c) => c.user.id === me.id)?.tareas ?? []
+  const misIncumplidos = bloques.incumplidos.filter((i) => i.responsables.some((u) => u.id === me.id))
+  const miSemana = bloques.semana.find((s) => s.user.id === me.id)
+  const misFechas = bloques.fechas.filter((f) => f.involucra.includes(me.id))
+  const misAnotaciones = kickoffAnotaciones.filter((a) => a.kickoffId === kickoff.id && a.usuarioId === me.id)
+  const { desde, hasta } = semanaDe(kickoff.fecha)
+
+  const guardar = () => {
+    upsertKickoffBriefing({
+      id: mio?.id ?? uid(),
+      kickoffId: kickoff.id,
+      usuarioId: me.id,
+      enQueTrabajo: q1.trim(),
+      necesitoAlgo: q2.trim(),
+      completadoAt: q1.trim() || q2.trim() ? new Date().toISOString() : null,
+    })
+    setGuardado(true)
+    window.setTimeout(() => setGuardado(false), 2500)
+  }
+
+  const anotar = (bloque: string, comentario: string, referencia?: { id: string; titulo: string }) =>
+    upsertKickoffAnotacion({
+      id: uid(),
+      kickoffId: kickoff.id,
+      usuarioId: me.id,
+      bloque,
+      referenciaId: referencia?.id ?? null,
+      textoResaltado: referencia?.titulo ?? null,
+      comentario,
+      visibilidad: 'privada',
+      createdAt: new Date().toISOString(),
+    })
+
+  const agregarNota = () => {
+    const texto = nota.trim()
+    if (!texto) return
+    anotar('general', texto)
+    setNota('')
+  }
 
   return (
     <div className="space-y-4">
       <p className="text-[11px] font-semibold text-slate-400">
-        Así lo vería cada persona desde el viernes (acá, el ejemplo de Luciana). Nadie ve el briefing de otro.
+        Tu briefing del kickoff del {fechaLarga(kickoff.fecha)}. Nadie ve el briefing de otro.
       </p>
 
-      <Tarjeta titulo="Cerraste 2 tareas la semana pasada 👏">
-        <FilaHecha texto="Actualizar pipeline de ventas" />
-        <FilaHecha texto="Guion de la nota de prensa del Intercolegial" />
-      </Tarjeta>
-
-      <Tarjeta titulo="Te comprometiste y quedó pendiente">
-        <div className="flex items-center gap-2.5 py-1">
-          <span className="min-w-0 flex-1 text-sm font-bold text-slate-700">Confirmar sede de Jóvenes Conectados</span>
-          <span className="shrink-0 rounded bg-[#e5484d] px-1.5 py-0.5 text-[10px] font-extrabold text-white">5 días</span>
-        </div>
-      </Tarjeta>
-
-      <Tarjeta titulo="Tu semana">
-        {['Logística del Intercolegial (vie 11)', 'Prensa e invitaciones (mié 9)', 'Seguimiento de pipeline (jue 10)'].map(
-          (t) => (
-            <p key={t} className="border-b border-slate-50 py-1.5 text-sm font-semibold text-slate-600 last:border-0">
-              {t}
-            </p>
-          ),
+      <Tarjeta titulo={`Cerraste ${misCerradas.length} tarea${misCerradas.length === 1 ? '' : 's'} la semana pasada`}>
+        {misCerradas.length ? (
+          misCerradas.map((t) => (
+            <FilaAnotable
+              key={t.id}
+              titulo={t.title}
+              icono={<CheckCircle2 size={15} className="shrink-0 fill-emerald-100 text-emerald-500" />}
+              onAbrir={() => onEditTask(t)}
+              onAnotar={(c) => anotar('cerradas', c, { id: t.id, titulo: t.title })}
+            />
+          ))
+        ) : (
+          <p className="py-2 text-sm font-semibold text-slate-300">Nada registrado como completado.</p>
         )}
       </Tarjeta>
 
-      <Tarjeta titulo="Fechas que te involucran">
-        <p className="py-1 text-sm font-semibold text-slate-600">🚩 Intercolegial Cristo Rey · vie 11 sep</p>
-        <p className="py-1 text-sm font-semibold text-slate-600">🚩 Capacitación M3 · mar 15 sep · 13:00</p>
+      <Tarjeta titulo="Te comprometiste y quedó pendiente">
+        {misIncumplidos.length ? (
+          misIncumplidos.map((i) => (
+            <div key={i.id} className="flex items-center gap-2 py-1">
+              <span className="min-w-0 flex-1 text-sm font-bold text-slate-700">{i.texto}</span>
+              <span className="shrink-0 rounded bg-[#e5484d] px-1.5 py-0.5 text-[10px] font-extrabold text-white">
+                {i.dias} día{i.dias === 1 ? '' : 's'}
+              </span>
+            </div>
+          ))
+        ) : (
+          <p className="py-2 text-sm font-semibold text-slate-300">Nada pendiente del kickoff anterior. 🎉</p>
+        )}
       </Tarjeta>
+
+      <Tarjeta titulo={`Tu semana · ${format(parseISO(desde), 'd MMM', { locale: es })} al ${format(parseISO(hasta), 'd MMM', { locale: es })}`}>
+        {miSemana?.tareas.length ? (
+          miSemana.tareas.map((t) => (
+            <FilaAnotable
+              key={t.id}
+              titulo={`${t.title}${t.date ? ` · ${format(parseISO(t.date), 'EEE d', { locale: es })}` : ''}`}
+              onAbrir={() => onEditTask(t)}
+              onAnotar={(c) => anotar('semana', c, { id: t.id, titulo: t.title })}
+            />
+          ))
+        ) : (
+          <p className="py-2 text-sm font-semibold text-slate-300">No tenés tareas con fecha esta semana.</p>
+        )}
+      </Tarjeta>
+
+      {misFechas.length > 0 && (
+        <Tarjeta titulo="Fechas que te involucran">
+          {misFechas.map((f) => (
+            <p key={f.id} className="flex items-center gap-2 py-1 text-sm font-semibold text-slate-600">
+              <Flag size={13} style={{ color: f.color }} className="shrink-0" />
+              <span className="min-w-0 flex-1 truncate">{f.titulo}</span>
+              <span className="shrink-0 text-xs font-extrabold text-slate-500 capitalize">
+                {format(parseISO(f.fecha), 'EEE d MMM', { locale: es })}
+                {f.hora ? ` · ${f.hora}` : ''}
+              </span>
+            </p>
+          ))}
+        </Tarjeta>
+      )}
 
       <section className="rounded-xl border-2 border-blue-200 bg-white p-4 shadow-sm">
         <h3 className="text-sm font-extrabold text-slate-700">Dos preguntas antes del lunes</h3>
@@ -382,13 +807,20 @@ function BriefingPersonalMaqueta() {
           placeholder="Nombralo acá y se habla el lunes…"
           className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 outline-none placeholder:text-slate-300 focus:border-blue-300"
         />
-        <button
-          disabled
-          title="Se activa en la Fase 8"
-          className="mt-3 cursor-not-allowed rounded-lg bg-blue-600 px-4 py-2 text-sm font-extrabold text-white opacity-40"
-        >
-          Guardar mis respuestas
-        </button>
+        <div className="mt-3 flex items-center gap-3">
+          <button
+            onClick={guardar}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-extrabold text-white hover:bg-blue-700"
+          >
+            Guardar mis respuestas
+          </button>
+          {guardado && <span className="text-xs font-extrabold text-emerald-600">Guardado ✓</span>}
+          {!guardado && mio?.completadoAt && (
+            <span className="text-xs font-semibold text-slate-400">
+              Ya lo completaste. El Gerente ve estas dos respuestas (nada más).
+            </span>
+          )}
+        </div>
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -396,27 +828,136 @@ function BriefingPersonalMaqueta() {
           <MessageCircle size={14} className="text-blue-600" /> Tus anotaciones
         </h3>
         <p className="mb-2 text-[11px] font-semibold text-slate-400">
-          Privadas de verdad: ni el Gerente las ve, salvo que vos las compartas.
+          Privadas de verdad: ni el Gerente las ve, salvo que toques «Compartir en la reunión».
         </p>
-        <div className="rounded-lg bg-slate-50 px-3 py-2">
-          <p className="text-sm font-semibold text-slate-600">Preguntar por el presupuesto de prensa antes de cerrar.</p>
-          <div className="mt-1.5 flex items-center gap-2">
-            <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[9px] font-extrabold text-slate-500">
-              🔒 Solo la ves vos
-            </span>
-            <button
-              disabled
-              title="Se activa en la Fase 8"
-              className="cursor-not-allowed text-[10px] font-extrabold text-slate-300"
-            >
-              Compartir en la reunión
-            </button>
-          </div>
+        <div className="space-y-1.5">
+          {misAnotaciones.map((a) => (
+            <div key={a.id} className="rounded-lg bg-slate-50 px-3 py-2">
+              {a.textoResaltado && (
+                <p className="text-[10px] font-extrabold tracking-wide text-slate-400 uppercase">{a.textoResaltado}</p>
+              )}
+              <p className="text-sm font-semibold text-slate-600">{a.comentario}</p>
+              <div className="mt-1.5 flex items-center gap-2">
+                {a.visibilidad === 'privada' ? (
+                  <>
+                    <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[9px] font-extrabold text-slate-500">
+                      🔒 Solo la ves vos
+                    </span>
+                    <button
+                      onClick={() => upsertKickoffAnotacion({ ...a, visibilidad: 'compartida' })}
+                      className="flex items-center gap-1 text-[10px] font-extrabold text-blue-600 hover:text-blue-700"
+                    >
+                      <Share2 size={11} /> Compartir en la reunión
+                    </button>
+                  </>
+                ) : (
+                  <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[9px] font-extrabold text-blue-700">
+                    Compartida con el equipo
+                  </span>
+                )}
+                <button
+                  onClick={() => removeKickoffAnotacion(a.id)}
+                  className="ml-auto rounded-lg p-1 text-slate-300 hover:bg-red-50 hover:text-red-500"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            </div>
+          ))}
+          {!misAnotaciones.length && (
+            <p className="py-2 text-sm font-semibold text-slate-300">
+              Todavía no anotaste nada. Podés comentar una línea de arriba con 💬 o dejar una nota suelta acá.
+            </p>
+          )}
         </div>
-        <button disabled title="Se activa en la Fase 8" className="mt-2 flex cursor-not-allowed items-center gap-1 text-xs font-bold text-slate-300">
-          <ChevronDown size={13} /> Agregar nota al pie
-        </button>
+        <div className="mt-2 flex items-center gap-2">
+          <input
+            value={nota}
+            onChange={(e) => setNota(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && agregarNota()}
+            placeholder="Nota para vos, para el lunes…"
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none placeholder:text-slate-300 focus:border-blue-400"
+          />
+          <button
+            onClick={agregarNota}
+            disabled={!nota.trim()}
+            title="Guardar la nota"
+            className="shrink-0 rounded-lg bg-blue-600 p-2 text-white hover:bg-blue-700 disabled:opacity-40"
+          >
+            <Send size={15} />
+          </button>
+        </div>
       </section>
+    </div>
+  )
+}
+
+function Tarjeta({ titulo, children }: { titulo: string; children: ReactNode }) {
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <h3 className="mb-2 text-sm font-extrabold text-slate-700">{titulo}</h3>
+      {children}
+    </section>
+  )
+}
+
+/** Una línea del briefing que se puede abrir y comentar (la anotación nace privada). */
+function FilaAnotable({
+  titulo,
+  icono,
+  onAbrir,
+  onAnotar,
+}: {
+  titulo: string
+  icono?: ReactNode
+  onAbrir: () => void
+  onAnotar: (comentario: string) => void
+}) {
+  const [abierto, setAbierto] = useState(false)
+  const [texto, setTexto] = useState('')
+
+  const guardar = () => {
+    const c = texto.trim()
+    if (!c) return
+    onAnotar(c)
+    setTexto('')
+    setAbierto(false)
+  }
+
+  return (
+    <div className="border-b border-slate-50 py-1 last:border-0">
+      <div className="flex items-center gap-2">
+        {icono}
+        <button onClick={onAbrir} className="min-w-0 flex-1 truncate text-left text-sm font-semibold text-slate-600 hover:text-blue-700">
+          {titulo}
+        </button>
+        <button
+          onClick={() => setAbierto((o) => !o)}
+          title="Anotar algo sobre esta línea (privado)"
+          className={`shrink-0 rounded-lg p-1 transition ${abierto ? 'bg-blue-50 text-blue-600' : 'text-slate-300 hover:bg-slate-100 hover:text-slate-500'}`}
+        >
+          <MessageCircle size={14} />
+        </button>
+      </div>
+      {abierto && (
+        <div className="mt-1 flex items-center gap-2 pb-1">
+          <input
+            autoFocus
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && guardar()}
+            placeholder="Tu anotación (privada)…"
+            className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm text-slate-700 outline-none placeholder:text-slate-300 focus:border-blue-400"
+          />
+          <button
+            onClick={guardar}
+            disabled={!texto.trim()}
+            className="shrink-0 rounded-lg bg-blue-600 p-1.5 text-white hover:bg-blue-700 disabled:opacity-40"
+          >
+            <Send size={14} />
+          </button>
+        </div>
+      )}
     </div>
   )
 }

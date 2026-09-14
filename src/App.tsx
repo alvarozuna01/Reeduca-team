@@ -74,7 +74,9 @@ function Shell() {
         {view === 'kanban' && <Kanban onEdit={(t) => setEditor({ task: t })} />}
         {view === 'hitos' && <Hitos onEditTask={(t) => setEditor({ task: t })} />}
         {view === 'minutas' && <Minutas onEditTask={(t) => setEditor({ task: t })} />}
-        {view === 'kickoff' && <Kickoff />}
+        {view === 'kickoff' && (
+          <Kickoff onEditTask={(t) => setEditor({ task: t })} onIrAMinutas={() => setView('minutas')} />
+        )}
         {view === 'cuaderno' && <Cuaderno openNoteId={noteToOpen} onNoteOpened={() => setNoteToOpen(null)} />}
         {view === 'proyectos' && (
           <Proyectos

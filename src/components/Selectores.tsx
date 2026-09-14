@@ -225,3 +225,81 @@ function ListaPersonas({
     </div>
   )
 }
+
+/**
+ * Lista desplegable de UNA persona (responsable de una acción acordada).
+ * Compacta, para usar dentro de una fila.
+ */
+export function PersonSelect({
+  value,
+  onChange,
+  placeholder = 'Sin responsable',
+}: {
+  value?: string | null
+  onChange: (id: string | null) => void
+  placeholder?: string
+}) {
+  const { users, currentUser } = useApp()
+  const { abierto, setAbierto, ref } = useDesplegable()
+  const sel = users.find((u) => u.id === value)
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setAbierto((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={abierto}
+        className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white py-1 pr-1.5 pl-1 text-xs font-bold text-slate-600 transition hover:border-slate-300"
+      >
+        {sel ? (
+          <>
+            <Avatar user={sel} size={18} />
+            <span className="max-w-[7rem] truncate">{sel.name}</span>
+          </>
+        ) : (
+          <span className="px-1 text-slate-300">{placeholder}</span>
+        )}
+        <ChevronDown size={13} className={`shrink-0 text-slate-400 transition ${abierto ? 'rotate-180' : ''}`} />
+      </button>
+
+      {abierto && (
+        <div
+          role="listbox"
+          className="absolute top-full left-0 z-30 mt-1 max-h-64 w-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl"
+        >
+          <button
+            type="button"
+            onClick={() => {
+              onChange(null)
+              setAbierto(false)
+            }}
+            className="w-full rounded-lg px-2.5 py-1.5 text-left text-xs font-bold text-slate-400 transition hover:bg-slate-50"
+          >
+            {placeholder}
+          </button>
+          {users.map((u) => (
+            <button
+              key={u.id}
+              type="button"
+              role="option"
+              aria-selected={u.id === value}
+              onClick={() => {
+                onChange(u.id)
+                setAbierto(false)
+              }}
+              className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm font-bold transition ${
+                u.id === value ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <Avatar user={u} size={22} />
+              <span className="min-w-0 flex-1 truncate">{u.name}</span>
+              {u.id === currentUser?.id && <span className="text-[10px] font-extrabold text-slate-400">(vos)</span>}
+              {u.id === value && <Check size={14} className="shrink-0 text-blue-600" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}

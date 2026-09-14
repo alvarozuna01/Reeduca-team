@@ -1,17 +1,17 @@
 import { useMemo, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Mic, Plus, Sparkles, Trash2, Wand2 } from 'lucide-react'
-import { FEATURE_KICKOFF, type Minute, type MinuteAction, type Task } from '../types'
+import { BookOpen, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Plus, Trash2, Wand2 } from 'lucide-react'
+import type { Minute, MinuteAction, Task } from '../types'
 import { todayKey, uid } from '../lib/utils'
 import { useIsMobile } from '../lib/useIsMobile'
 import { useApp } from '../state/AppContext'
 import { Avatar, AvatarStack } from '../components/Avatar'
 import Modal, { Field, FieldDiv, inputCls } from '../components/Modal'
-import { PeopleSelect, ProjectSelect } from '../components/Selectores'
+import { PeopleSelect, PersonSelect, ProjectSelect } from '../components/Selectores'
 
 export default function Minutas({ onEditTask }: { onEditTask: (t: Task) => void }) {
-  const { minutes, users, tasks, currentUser, hasFlag, upsertMinute, removeMinute } = useApp()
+  const { minutes, users, tasks, currentUser, upsertMinute, removeMinute } = useApp()
   const isMobile = useIsMobile()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [convert, setConvert] = useState<{ minute: Minute; action: MinuteAction } | null>(null)
@@ -167,7 +167,7 @@ export default function Minutas({ onEditTask }: { onEditTask: (t: Task) => void 
               </Field>
             </div>
 
-            {hasFlag(FEATURE_KICKOFF) && <TranscripcionMaqueta />}
+            <EstandarMinuta minute={sel} onPatch={patchSel} />
 
             <div className="mt-4">
               <Field label="Resumen de la reunión">
@@ -184,18 +184,26 @@ export default function Minutas({ onEditTask }: { onEditTask: (t: Task) => void 
             <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
               <p className="text-[11px] font-extrabold tracking-wide text-slate-400 uppercase">Acciones acordadas</p>
               <p className="mb-3 text-[11px] font-semibold text-slate-400">
-                Cada punto se puede convertir en una tarea del sistema con un clic ✨
+                Una acción por línea, con responsable y fecha. Lo que tiene que entrar al Kanban se convierte en tarea
+                con un clic; el resto queda como registro de la reunión.
               </p>
               <div className="space-y-2">
                 {sel.actions.map((a) => {
                   const task = a.taskId ? tasks.find((t) => t.id === a.taskId) : undefined
+                  const completa = !!a.text.trim() && !!a.responsableSugeridoId && !!a.fechaSugerida
                   return (
-                    <div key={a.id} className="flex items-center gap-2">
+                    <div
+                      key={a.id}
+                      className={`rounded-xl border p-2.5 ${
+                        task || completa ? 'border-slate-200 bg-white' : 'border-amber-200 bg-amber-50/40'
+                      }`}
+                    >
+                    <div className="flex items-center gap-2">
                       <span className="size-1.5 shrink-0 rounded-full bg-slate-300" />
                       <input
                         value={a.text}
                         onChange={(e) => patchAction(a.id, { text: e.target.value })}
-                        placeholder="¿Qué se acordó hacer?"
+                        placeholder="¿Qué se acordó hacer? Empezá con un verbo: Enviar, Definir, Confirmar…"
                         className={`${inputCls} bg-white`}
                       />
                       {task ? (
@@ -221,6 +229,28 @@ export default function Minutas({ onEditTask }: { onEditTask: (t: Task) => void 
                       >
                         <Trash2 size={14} />
                       </button>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 pl-3.5">
+                      <span className="text-[10px] font-extrabold tracking-wide text-slate-400 uppercase">Responsable</span>
+                      <PersonSelect
+                        value={a.responsableSugeridoId ?? null}
+                        onChange={(id) => patchAction(a.id, { responsableSugeridoId: id ?? undefined })}
+                      />
+                      <span className="ml-1 text-[10px] font-extrabold tracking-wide text-slate-400 uppercase">
+                        Para cuándo
+                      </span>
+                      <input
+                        type="date"
+                        value={a.fechaSugerida ?? ''}
+                        onChange={(e) => patchAction(a.id, { fechaSugerida: e.target.value || undefined })}
+                        className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600 outline-none focus:border-blue-400"
+                      />
+                      {!task && !completa && (
+                        <span className="text-[10px] font-extrabold text-amber-600">
+                          falta el responsable o la fecha
+                        </span>
+                      )}
+                    </div>
                     </div>
                   )
                 })}
@@ -252,88 +282,103 @@ export default function Minutas({ onEditTask }: { onEditTask: (t: Task) => void 
   )
 }
 
-/* ---- Transcripción (FASE 3: MAQUETA — el procesamiento real llega en la Fase 5) ---- */
 
-function TranscripcionMaqueta() {
+/* ---- El estándar: cómo se completa una minuta a mano ---- */
+
+const PLANTILLA = `Temas tratados:
+- 
+
+Decisiones tomadas:
+- 
+
+Trabas o riesgos:
+- `
+
+const REGLAS = [
+  'Título: qué reunión fue y con quién. Nunca dejarlo en «Nueva minuta».',
+  'Participantes: marcá a todos los que estuvieron, aunque hayan entrado un rato.',
+  'Resumen: 3 a 6 frases, en pasado. Qué se habló y qué se decidió. Sin relleno.',
+  'Acciones acordadas: una por línea, empezando con un verbo (Enviar, Definir, Confirmar), cada una con responsable y fecha.',
+  'Si no hay responsable claro, no es una acción: va al resumen como tema o riesgo.',
+  'Lo que tiene que entrar al Kanban se convierte en tarea con el botón; el resto queda como registro.',
+  'Se escribe el mismo día de la reunión: la memoria dura poco.',
+]
+
+/**
+ * Guía y control de calidad de la minuta: el estándar del equipo, una plantilla
+ * para el resumen, y un chequeo en vivo de lo que falta completar.
+ */
+function EstandarMinuta({ minute, onPatch }: { minute: Minute; onPatch: (p: Partial<Minute>) => void }) {
   const [abierto, setAbierto] = useState(false)
-  const [texto, setTexto] = useState('')
-  const [verCita, setVerCita] = useState(false)
+
+  const conTexto = minute.actions.filter((a) => a.text.trim())
+  const checks = [
+    { ok: !!minute.title.trim() && minute.title.trim() !== 'Nueva minuta', label: 'Título claro' },
+    { ok: minute.participantIds.length >= 2, label: 'Participantes' },
+    { ok: minute.summary.trim().length >= 100, label: 'Resumen completo' },
+    { ok: conTexto.length > 0, label: 'Acciones acordadas' },
+    {
+      ok: conTexto.length > 0 && conTexto.every((a) => a.responsableSugeridoId && a.fechaSugerida),
+      label: 'Responsable y fecha en cada acción',
+    },
+  ]
+  const listos = checks.filter((c) => c.ok).length
+  const completa = listos === checks.length
+
+  const usarPlantilla = () => {
+    if (minute.summary.trim() && !confirm('El resumen ya tiene texto. ¿Reemplazarlo por la plantilla?')) return
+    onPatch({ summary: PLANTILLA })
+  }
 
   return (
-    <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50/40">
-      <button
-        onClick={() => setAbierto((o) => !o)}
-        className="flex w-full items-center gap-2 px-4 py-3 text-left"
-      >
-        {abierto ? <ChevronDown size={15} className="text-blue-600" /> : <ChevronRight size={15} className="text-blue-600" />}
-        <span className="text-[11px] font-extrabold tracking-wide text-blue-700 uppercase">Transcripción</span>
-        <span className="rounded-full bg-white px-2 py-0.5 text-[9px] font-extrabold text-slate-400 uppercase">
-          Sin transcripción
+    <div className={`mt-4 rounded-xl border ${completa ? 'border-emerald-200 bg-emerald-50/40' : 'border-slate-200 bg-slate-50/60'}`}>
+      <div className="flex flex-wrap items-center gap-2 px-4 py-3">
+        <BookOpen size={14} className={completa ? 'text-emerald-600' : 'text-slate-400'} />
+        <span className="text-[11px] font-extrabold tracking-wide text-slate-500 uppercase">Estándar de minutas</span>
+        <span
+          className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
+            completa ? 'bg-emerald-100 text-emerald-700' : 'bg-white text-slate-500'
+          }`}
+        >
+          {completa ? 'Completa ✓' : `${listos} de ${checks.length}`}
         </span>
-        <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-extrabold text-amber-700 uppercase">
-          Maqueta
-        </span>
-      </button>
+        <button
+          onClick={() => setAbierto((o) => !o)}
+          className="ml-auto flex items-center gap-1 text-[11px] font-extrabold text-blue-600 hover:text-blue-700"
+        >
+          {abierto ? <ChevronDown size={13} /> : <ChevronRight size={13} />} cómo se completa
+        </button>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5 px-4 pb-3">
+        {checks.map((c) => (
+          <span
+            key={c.label}
+            className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
+              c.ok ? 'bg-emerald-100 text-emerald-700' : 'bg-white text-slate-400'
+            }`}
+          >
+            {c.ok ? <Check size={10} /> : <span className="size-2 rounded-full border border-slate-300" />}
+            {c.label}
+          </span>
+        ))}
+      </div>
 
       {abierto && (
-        <div className="space-y-3 px-4 pb-4">
-          <textarea
-            rows={5}
-            value={texto}
-            onChange={(e) => setTexto(e.target.value)}
-            placeholder="Pegá acá la transcripción del grabador del celular… (maqueta: todavía no guarda)"
-            className={`${inputCls} resize-y bg-white leading-relaxed`}
-          />
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              disabled
-              title="Se activa en la Fase 5 (dictado por voz del navegador)"
-              className="flex cursor-not-allowed items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-300"
-            >
-              <Mic size={13} /> Dictar
-            </button>
-            <button
-              disabled
-              title="Se activa en la Fase 5 (procesamiento con IA)"
-              className="flex cursor-not-allowed items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-extrabold text-white opacity-40"
-            >
-              <Sparkles size={13} /> Generar resumen y acciones
-            </button>
-            <span className="text-[10px] font-semibold text-slate-400">
-              El dictado sirve para notas cortas. Reuniones largas: grabá con el celular y pegá el texto.
-            </span>
-          </div>
-
-          <div className="rounded-lg border border-violet-200 bg-white p-3">
-            <p className="mb-2 text-[10px] font-extrabold tracking-wide text-violet-500 uppercase">
-              Así se van a ver las acciones propuestas por la IA (ejemplo)
-            </p>
-            <div className="flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50/60 px-2.5 py-2">
-              <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[9px] font-extrabold text-violet-700">✨ propuesta</span>
-              <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-700">
-                Enviar el presupuesto de kits al MEC antes del viernes
-              </span>
-              <span className="shrink-0 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-extrabold text-white opacity-40">
-                Convertir en tarea
-              </span>
-            </div>
-            <button
-              onClick={() => setVerCita((v) => !v)}
-              className="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-violet-600 hover:text-violet-700"
-            >
-              {verCita ? <ChevronDown size={12} /> : <ChevronRight size={12} />} ver de dónde salió
-            </button>
-            {verCita && (
-              <p className="mt-1 rounded-lg bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500 italic">
-                «…entonces quedamos que le mandamos el presupuesto de los kits al MEC, sí o sí antes del viernes, porque
-                si no se cae la compra de este año…»
-              </p>
-            )}
-            <p className="mt-2 text-[10px] font-semibold text-slate-400">
-              Cada propuesta guarda la frase textual de donde salió. Nada entra al Kanban hasta que toques «Convertir en
-              tarea», igual que hoy.
-            </p>
-          </div>
+        <div className="border-t border-slate-200 px-4 py-3">
+          <ol className="list-decimal space-y-1.5 pl-4">
+            {REGLAS.map((r) => (
+              <li key={r} className="text-[12px] leading-snug font-semibold text-slate-600">
+                {r}
+              </li>
+            ))}
+          </ol>
+          <button
+            onClick={usarPlantilla}
+            className="mt-3 flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-extrabold text-slate-600 hover:border-blue-300 hover:text-blue-700"
+          >
+            <Plus size={13} /> Usar la plantilla del resumen
+          </button>
         </div>
       )}
     </div>
@@ -356,8 +401,10 @@ function ConvertModal({
   const { projects, tasks, upsertTask } = useApp()
   const [title, setTitle] = useState(action.text)
   const [projectId, setProjectId] = useState(projects[0]?.id ?? '')
-  const [date, setDate] = useState(todayKey())
-  const [assigneeIds, setAssigneeIds] = useState<string[]>(minute.participantIds)
+  const [date, setDate] = useState(action.fechaSugerida || todayKey())
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(
+    action.responsableSugeridoId ? [action.responsableSugeridoId] : minute.participantIds,
+  )
 
   const create = () => {
     const sameDay = tasks.filter((t) => t.date === date)

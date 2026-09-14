@@ -13,7 +13,16 @@ export interface BloqueKickoff {
  * navegación adelante/atrás bien grande (se proyecta o se muestra desde
  * el celular). Tiempo sugerido por bloque, sin cronómetro ni alarmas.
  */
-export default function KickoffReunion({ bloques, onClose }: { bloques: BloqueKickoff[]; onClose: () => void }) {
+export default function KickoffReunion({
+  bloques,
+  pie,
+  onClose,
+}: {
+  bloques: BloqueKickoff[]
+  /** Barra fija sobre la navegación (ej.: agregar una acción acordada en cualquier bloque). */
+  pie?: ReactNode
+  onClose: () => void
+}) {
   const [idx, setIdx] = useState(0)
   const bloque = bloques[idx]
 
@@ -44,6 +53,8 @@ export default function KickoffReunion({ bloques, onClose }: { bloques: BloqueKi
           <div className="mt-5">{bloque.contenido}</div>
         </div>
       </div>
+
+      {pie && <div className="shrink-0 border-t border-slate-100 px-4 py-3 md:px-8">{pie}</div>}
 
       <div className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 md:px-8">
         <button
