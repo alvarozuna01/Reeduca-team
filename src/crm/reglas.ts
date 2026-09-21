@@ -20,10 +20,11 @@ export function semaforoDe(a: CrmAccion, hoy = todayKey()): Semaforo {
   return a.fecha && a.fecha < hoy ? 'vencida' : 'pendiente'
 }
 
-export const COLOR_SEMAFORO: Record<Semaforo, { chip: string; punto: string }> = {
-  hecha: { chip: 'border-emerald-200 bg-emerald-50 text-emerald-800', punto: '#34C48E' },
-  pendiente: { chip: 'border-amber-200 bg-amber-50 text-amber-800', punto: '#F0A62B' },
-  vencida: { chip: 'border-red-200 bg-red-50 text-red-700', punto: '#e5484d' },
+/** Los colores del CRM de la planilla: verde hecha, naranja pendiente, rojo vencida. */
+export const COLOR_SEMAFORO: Record<Semaforo, { chip: string; punto: string; fondo: string }> = {
+  hecha: { chip: 'border-[#48A859]/30 bg-[#EFF7F0] text-[#2E6B38]', punto: '#48A859', fondo: '#EFF7F0' },
+  pendiente: { chip: 'border-[#F39221]/30 bg-[#FEF4E8] text-[#8A4B0B]', punto: '#F39221', fondo: '#FEF4E8' },
+  vencida: { chip: 'border-[#C63A2B]/30 bg-[#FBEBEA] text-[#9B2C20]', punto: '#C63A2B', fondo: '#FBEBEA' },
 }
 
 /** Las acciones de una oportunidad, en el orden de la cadena. */
@@ -45,29 +46,45 @@ export function proximaDe(cadena: CrmAccion[]): CrmAccion | undefined {
     .sort((a, b) => (a.fecha ?? '9999').localeCompare(b.fecha ?? '9999'))[0]
 }
 
-export type Grupo = 'vencidas' | 'semana' | 'sinFecha' | 'futuras' | 'sinAccion'
-export const GRUPOS: { id: Grupo; label: string; ayuda: string }[] = [
-  { id: 'vencidas', label: 'Vencidas', ayuda: 'La próxima acción ya pasó de fecha' },
-  { id: 'semana', label: 'Esta semana', ayuda: 'La próxima acción es de lunes a domingo' },
-  { id: 'sinFecha', label: 'Sin fecha', ayuda: 'La próxima acción no tiene fecha' },
-  { id: 'futuras', label: 'Futuras', ayuda: 'La próxima acción es más adelante' },
-  { id: 'sinAccion', label: 'Sin próxima acción', ayuda: 'No hay nada pendiente: ¿cuál es el próximo paso?' },
-]
-
 export function semanaActual(hoy = new Date()) {
   const lunes = startOfWeek(hoy, { weekStartsOn: 1 })
   return { desde: toKey(lunes), hasta: toKey(addDays(lunes, 6)) }
 }
 
-export function grupoDe(proxima: CrmAccion | undefined, hoy = todayKey()): Grupo {
-  if (!proxima) return 'sinAccion'
-  if (!proxima.fecha) return 'sinFecha'
-  if (proxima.fecha < hoy) return 'vencidas'
+/**
+ * En qué desplegables aparece una oportunidad: en cada uno donde tenga al menos
+ * una acción pendiente (vencida, de esta semana, o futura / sin fecha).
+ */
+export function urgenciasDe(cadena: CrmAccion[], hoy = todayKey()) {
   const { hasta } = semanaActual(parseISO(hoy))
-  return proxima.fecha <= hasta ? 'semana' : 'futuras'
+  const u = { vencidas: false, semana: false, futuras: false }
+  for (const a of cadena) {
+    if (a.estado === 'CONCRETADO') continue
+    if (a.fecha && a.fecha < hoy) u.vencidas = true
+    else if (a.fecha && a.fecha <= hasta) u.semana = true
+    else u.futuras = true
+  }
+  return u
+}
+
+/** Marcar hecha: queda CONCRETADO con la fecha de hoy (como en la planilla). */
+export const comoHecha = (a: CrmAccion): CrmAccion => ({ ...a, estado: 'CONCRETADO', fecha: todayKey() })
+
+/** Adivina el tipo de acción por el texto (la misma regla de la planilla). */
+export function adivinarTipo(texto: string) {
+  const t = texto.toLowerCase()
+  if (/invitaci.n lnr|liga nacional|\blnr\b|invitar a la liga/.test(t)) return 'lnr'
+  if (/presupuesto|cotiz/.test(t)) return 'presupuesto'
+  if (/flyer|folleto|volante|pedir contacto|dejar material/.test(t)) return 'flyer'
+  if (/whatsapp|wpp|mensaje|msj/.test(t)) return 'mensaje'
+  if (/mail|correo|email|escrib|invita/.test(t)) return 'mail'
+  if (/reuni|presencial|en persona|taller|visita/.test(t)) return 'reunion'
+  if (/llamar|llamada|llam/.test(t)) return 'llamada'
+  return 'otro'
 }
 
 export const etiquetaTipo = (a: CrmAccion, opp?: CrmOportunidad) =>
   a.esLnr ? 'LNR' : opp ? tipoDe(opp.etapa) : 'sin venta'
 
 export const etiquetaTipoAccion = (tipo: string) => TIPOS_ACCION.find((t) => t.id === tipo)?.label ?? (tipo || 'Acción')
+export const iconoTipo = (tipo: string) => TIPOS_ACCION.find((t) => t.id === tipo)?.icono ?? '•'

@@ -1,12 +1,14 @@
 import { useState } from 'react'
-import { Building2, CheckCircle2 } from 'lucide-react'
+import { Building2, CheckCircle2, CornerDownRight } from 'lucide-react'
 import { todayKey, uid } from '../lib/utils'
 import { useApp } from '../state/AppContext'
 import Modal, { Field, FieldDiv, inputCls } from '../components/Modal'
 import { PeopleSelect } from '../components/Selectores'
 import { useCrm, type NuevaAccion } from './contexto'
 import { tipoDe } from './reglas'
-import { ESTADOS_ACCION, TIPOS_ACCION, type CrmAccion, type EstadoAccion } from './tipos'
+import ElegirInstitucion from './ElegirInstitucion'
+import OpcionesTipo from './OpcionesTipo'
+import { ESTADOS_ACCION, type CrmAccion, type EstadoAccion } from './tipos'
 
 const ESTADO_LABEL: Record<EstadoAccion, string> = {
   PENDIENTE: 'Pendiente',
@@ -19,8 +21,9 @@ export default function AccionEditor({ inicial, onClose }: { inicial: CrmAccion 
   const { currentUser } = useApp()
   const { instituciones, oportunidades, acciones, guardarAccion, borrarAccion, abrirFicha } = useCrm()
   const esNueva = 'nueva' in inicial
-  const institucion = instituciones.find((i) => i.id === inicial.institucionId)
-  const oppsInst = oportunidades.filter((o) => o.institucionId === inicial.institucionId)
+  const oppsDe = (institucionId: string) => oportunidades.filter((o) => o.institucionId === institucionId)
+  const oppsInst = oppsDe(inicial.institucionId)
+  const [moviendo, setMoviendo] = useState(false)
 
   const [draft, setDraft] = useState<CrmAccion>(() =>
     esNueva
@@ -42,6 +45,27 @@ export default function AccionEditor({ inicial, onClose }: { inicial: CrmAccion 
       : { ...inicial },
   )
   const set = <K extends keyof CrmAccion>(k: K, v: CrmAccion[K]) => setDraft((d) => ({ ...d, [k]: v }))
+  const institucion = instituciones.find((i) => i.id === draft.institucionId)
+  const oppsDraft = oppsDe(draft.institucionId)
+
+  /** Mover a otra institución: va a su venta de la misma modalidad (o la primera abierta), al final de la cadena. */
+  const moverA = (institucionId: string | null) => {
+    if (!institucionId) return
+    const opps = oppsDe(institucionId)
+    const actual = oportunidades.find((o) => o.id === draft.oportunidadId)
+    const destino =
+      opps.find((o) => tipoDe(o.etapa) !== 'perdida' && o.modalidad === actual?.modalidad) ??
+      opps.find((o) => tipoDe(o.etapa) !== 'perdida') ??
+      opps[0]
+    setDraft((d) => ({
+      ...d,
+      institucionId,
+      oportunidadId: destino?.id ?? null,
+      esLnr: false,
+      orden: Math.max(0, ...acciones.filter((a) => a.institucionId === institucionId).map((a) => a.orden)) + 1,
+    }))
+    setMoviendo(false)
+  }
 
   const vinculo = draft.esLnr ? 'lnr' : (draft.oportunidadId ?? '')
   const cambiarVinculo = (v: string) =>
@@ -90,7 +114,7 @@ export default function AccionEditor({ inicial, onClose }: { inicial: CrmAccion 
 
         <Field label="Es parte de">
           <select value={vinculo} onChange={(e) => cambiarVinculo(e.target.value)} className={inputCls}>
-            {oppsInst.map((o) => (
+            {oppsDraft.map((o) => (
               <option key={o.id} value={o.id}>
                 {tipoDe(o.etapa) === 'posventa' ? 'Posventa' : tipoDe(o.etapa) === 'perdida' ? 'Venta perdida' : 'Venta'}
                 {o.modalidad ? ` · ${o.modalidad}` : ''} ({o.etapa})
@@ -100,6 +124,29 @@ export default function AccionEditor({ inicial, onClose }: { inicial: CrmAccion 
             <option value="">Sin venta asociada</option>
           </select>
         </Field>
+
+        {!esNueva &&
+          (moviendo ? (
+            <FieldDiv label="↪ Mover a otra institución">
+              <ElegirInstitucion value={null} onChange={moverA} excluir={draft.institucionId} autoFocus />
+              <button type="button" onClick={() => setMoviendo(false)} className="mt-1 text-[11px] font-bold text-slate-400 hover:text-slate-600">
+                Cancelar
+              </button>
+            </FieldDiv>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setMoviendo(true)}
+              className="-mt-2 flex items-center gap-1 text-xs font-extrabold text-blue-600 hover:text-blue-700"
+            >
+              <CornerDownRight size={13} /> Mover a otra institución
+            </button>
+          ))}
+        {draft.institucionId !== inicial.institucionId && (
+          <p className="-mt-2 rounded-lg bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-700">
+            Al guardar, la acción pasa de «{instituciones.find((i) => i.id === inicial.institucionId)?.nombre}» a «{institucion?.nombre}».
+          </p>
+        )}
 
         <div className="grid grid-cols-2 gap-2">
           <Field label="Fecha">
@@ -112,12 +159,7 @@ export default function AccionEditor({ inicial, onClose }: { inicial: CrmAccion 
           </Field>
           <Field label="Tipo">
             <select value={draft.tipo} onChange={(e) => set('tipo', e.target.value)} className={inputCls}>
-              {!TIPOS_ACCION.some((t) => t.id === draft.tipo) && <option value={draft.tipo}>{draft.tipo || '—'}</option>}
-              {TIPOS_ACCION.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.label}
-                </option>
-              ))}
+              <OpcionesTipo actual={draft.tipo} />
             </select>
           </Field>
         </div>

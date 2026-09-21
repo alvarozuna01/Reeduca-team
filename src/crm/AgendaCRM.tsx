@@ -42,7 +42,7 @@ export default function AccionesCrmDelDia({ acciones }: { acciones: CrmAccion[] 
                 </button>
                 {s !== 'hecha' && (
                   <button
-                    onClick={() => crm.guardarAccion({ ...a, estado: 'CONCRETADO' })}
+                    onClick={() => crm.marcarHecha(a)}
                     title="Marcar como hecha"
                     className="shrink-0 rounded p-0.5 text-slate-300 hover:bg-emerald-50 hover:text-emerald-600"
                   >

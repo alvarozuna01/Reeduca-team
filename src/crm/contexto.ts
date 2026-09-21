@@ -12,6 +12,10 @@ export interface CrmCtx extends CrmDB {
   /** Guarda y anota en la bitácora qué cambió. */
   guardarAccion: (a: CrmAccion) => void
   borrarAccion: (a: CrmAccion) => void
+  /** Hecha = CONCRETADO con la fecha de hoy (como en la planilla). */
+  marcarHecha: (a: CrmAccion) => void
+  /** Pasa la acción a otra oportunidad (de la misma u otra institución). */
+  moverAccion: (a: CrmAccion, destino: CrmOportunidad) => void
   darAcceso: (userId: string) => void
   quitarAcceso: (userId: string) => void
   /** Ventanas que se abren desde cualquier pantalla (también desde la Agenda). */

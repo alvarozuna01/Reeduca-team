@@ -17,17 +17,18 @@ export type EstadoAccion = (typeof ESTADOS_ACCION)[number]
 export const MODALIDADES = ['', 'Curricular', 'Extracurricular'] as const
 export const SEGMENTOS = ['Colegio', 'Universidad', 'Academia'] as const
 
-export const TIPOS_ACCION: { id: string; label: string }[] = [
-  { id: 'llamada', label: 'Llamada' },
-  { id: 'mensaje', label: 'Mensaje' },
-  { id: 'mail', label: 'Mail' },
-  { id: 'reunion', label: 'Reunión' },
-  { id: 'presupuesto', label: 'Presupuesto' },
-  { id: 'flyer', label: 'Flyer' },
-  { id: 'respuesta', label: 'Respuesta del colegio' },
-  { id: 'teavisamos', label: '"Te avisamos"' },
-  { id: 'lnr', label: 'Invitación LNR' },
-  { id: 'otro', label: 'Otro' },
+/** Tipos de acción, con el ícono y los grupos del CRM de la planilla. */
+export const TIPOS_ACCION: { id: string; label: string; icono: string; grupo: 'nuestro' | 'lnr' | 'respuesta' }[] = [
+  { id: 'llamada', label: 'Llamada', icono: '📞', grupo: 'nuestro' },
+  { id: 'mensaje', label: 'Mensaje', icono: '💬', grupo: 'nuestro' },
+  { id: 'mail', label: 'Mail', icono: '✉️', grupo: 'nuestro' },
+  { id: 'reunion', label: 'Reunión / Visita', icono: '🤝', grupo: 'nuestro' },
+  { id: 'flyer', label: 'Flyer / pedir contacto', icono: '📌', grupo: 'nuestro' },
+  { id: 'presupuesto', label: 'Presupuesto', icono: '📄', grupo: 'nuestro' },
+  { id: 'otro', label: 'Otro', icono: '•', grupo: 'nuestro' },
+  { id: 'lnr', label: 'Invitación LNR', icono: '🏆', grupo: 'lnr' },
+  { id: 'respuesta', label: 'Respondió', icono: '↩️', grupo: 'respuesta' },
+  { id: 'teavisamos', label: 'Te avisamos', icono: '⏳', grupo: 'respuesta' },
 ]
 
 export interface CrmInstitucion {

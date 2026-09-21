@@ -44,7 +44,7 @@ export default function Ficha({ institucionId, onClose }: { institucionId: strin
     { id: 'bitacora', label: 'Bitácora', n: bitacora.length },
   ]
 
-  const hecha = (a: CrmAccion) => crm.guardarAccion({ ...a, estado: 'CONCRETADO' })
+  const hecha = (a: CrmAccion) => crm.marcarHecha(a)
 
   return (
     <Modal title={inst.nombre} onClose={onClose} width="max-w-4xl">

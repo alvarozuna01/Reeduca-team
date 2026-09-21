@@ -4,8 +4,8 @@ import { uid } from '../lib/utils'
 import { useApp } from '../state/AppContext'
 import { CrmContexto, type CrmCtx, type NuevaAccion } from './contexto'
 import { crmApi, CRM_KEY, TABLAS_CRM } from './crmApi'
-import { CRM_VACIO, type CrmAccion, type CrmBitacora, type CrmDB } from './tipos'
-import { tipoDe } from './reglas'
+import { CRM_VACIO, type CrmAccion, type CrmBitacora, type CrmDB, type CrmOportunidad } from './tipos'
+import { comoHecha, tipoDe } from './reglas'
 import AccionEditor from './AccionEditor'
 import Ficha from './Ficha'
 import NuevaInstitucion from './NuevaInstitucion'
@@ -100,11 +100,13 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   /* ---------- Bitácora ---------- */
   // Nombres de instituciones recién creadas: si en el mismo clic se crea la
   // institución y su primera oportunidad, la segunda todavía no la ve en el estado.
+  // Lo mismo con una oportunidad nueva y su primera acción.
   const recientes = useRef<Record<string, string>>({})
+  const oppsRecientes = useRef<Record<string, CrmOportunidad>>({})
   const nombreInst = (id: string) => db.instituciones.find((i) => i.id === id)?.nombre ?? recientes.current[id] ?? ''
   const ventaMod = (a: Pick<CrmAccion, 'esLnr' | 'oportunidadId'>) => {
     if (a.esLnr) return 'LNR'
-    const o = db.oportunidades.find((x) => x.id === a.oportunidadId)
+    const o = db.oportunidades.find((x) => x.id === a.oportunidadId) ?? (a.oportunidadId ? oppsRecientes.current[a.oportunidadId] : undefined)
     return o ? `${tipoDe(o.etapa)}${o.modalidad ? ` · ${o.modalidad}` : ''}` : ''
   }
   const anotar = (b: Omit<CrmBitacora, 'id' | 'fechaHora' | 'usuarioId' | 'usuario'>) => {
@@ -129,9 +131,32 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     if (antes.tipo !== despues.tipo) cambios.push(`tipo: ${antes.tipo || '—'} → ${despues.tipo || '—'}`)
     if (antes.responsableIds.join() !== despues.responsableIds.join())
       cambios.push(`responsables: ${nombres(antes.responsableIds)} → ${nombres(despues.responsableIds)}`)
-    if (antes.oportunidadId !== despues.oportunidadId || antes.esLnr !== despues.esLnr)
-      cambios.push(`de «${ventaMod(antes) || 'sin venta'}» a «${ventaMod(despues) || 'sin venta'}»`)
+    if (antes.institucionId !== despues.institucionId || antes.oportunidadId !== despues.oportunidadId || antes.esLnr !== despues.esLnr)
+      cambios.push(
+        `desde ${nombreInst(antes.institucionId)} (${ventaMod(antes) || 'sin venta'}) → ${nombreInst(despues.institucionId)} (${ventaMod(despues) || 'sin venta'})`,
+      )
     return cambios
+  }
+
+  function guardarAccion(a: CrmAccion) {
+    const antes = db.acciones.find((x) => x.id === a.id)
+    setDb((d) => ({ ...d, acciones: upsertEn(d.acciones, a) }))
+    crmApi.guardarAccion(a).catch(reportar)
+    if (!antes) {
+      anotar({ cambio: 'Creó', institucion: nombreInst(a.institucionId), ventaMod: ventaMod(a), accion: a.accion, detalle: `Acción nueva${a.fecha ? ` para el ${a.fecha}` : ''} (${nombres(a.responsableIds)})` })
+      return
+    }
+    const cambios = diferencias(antes, a)
+    if (!cambios.length) return
+    const hecha = antes.estado !== 'CONCRETADO' && a.estado === 'CONCRETADO'
+    const movida = antes.institucionId !== a.institucionId || antes.oportunidadId !== a.oportunidadId || antes.esLnr !== a.esLnr
+    anotar({
+      cambio: movida ? 'Movió' : hecha ? 'Hecha' : 'Editó',
+      institucion: nombreInst(a.institucionId),
+      ventaMod: ventaMod(a),
+      accion: a.accion,
+      detalle: cambios.join(' · '),
+    })
   }
 
   const value: CrmCtx = {
@@ -155,6 +180,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
 
     guardarOportunidad(o, detalle) {
       const antes = db.oportunidades.find((x) => x.id === o.id)
+      oppsRecientes.current[o.id] = o
       setDb((d) => ({ ...d, oportunidades: upsertEn(d.oportunidades, o) }))
       crmApi.guardarOportunidad(o).catch(reportar)
       const cambios: string[] = []
@@ -184,25 +210,20 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       anotar({ cambio: 'Borró contacto', institucion: nombreInst(c.institucionId), ventaMod: '', accion: '', detalle: `${c.nombre} (${c.rol || 'sin rol'})` })
     },
 
-    guardarAccion(a) {
-      const antes = db.acciones.find((x) => x.id === a.id)
-      setDb((d) => ({ ...d, acciones: upsertEn(d.acciones, a) }))
-      crmApi.guardarAccion(a).catch(reportar)
-      if (!antes) {
-        anotar({ cambio: 'Creó', institucion: nombreInst(a.institucionId), ventaMod: ventaMod(a), accion: a.accion, detalle: `Acción nueva${a.fecha ? ` para el ${a.fecha}` : ''} (${nombres(a.responsableIds)})` })
-        return
-      }
-      const cambios = diferencias(antes, a)
-      if (!cambios.length) return
-      const soloHecha = cambios.length === 1 && antes.estado !== a.estado && a.estado === 'CONCRETADO'
-      const movida = antes.oportunidadId !== a.oportunidadId || antes.esLnr !== a.esLnr
-      anotar({
-        cambio: soloHecha ? 'Hecha' : movida ? 'Movió' : 'Editó',
-        institucion: nombreInst(a.institucionId),
-        ventaMod: ventaMod(a),
-        accion: a.accion,
-        detalle: cambios.join(' · '),
-      })
+    guardarAccion,
+
+    marcarHecha(a) {
+      guardarAccion(comoHecha(a))
+    },
+
+    moverAccion(a, destino) {
+      if (a.oportunidadId === destino.id && !a.esLnr) return
+      // Al cambiar de institución, la acción va al final de la cadena de la nueva.
+      const orden =
+        a.institucionId === destino.institucionId
+          ? a.orden
+          : Math.max(0, ...db.acciones.filter((x) => x.institucionId === destino.institucionId).map((x) => x.orden)) + 1
+      guardarAccion({ ...a, institucionId: destino.institucionId, oportunidadId: destino.id, esLnr: false, orden })
     },
 
     borrarAccion(a) {
