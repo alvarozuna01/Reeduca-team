@@ -25,3 +25,8 @@ dist-ssr
 
 # Variables de entorno (claves de Supabase) — nunca subir al repo
 .env
+
+# Paquete de migración del CRM: trae datos personales de contactos de colegios
+# (teléfonos, mails). Nunca subir al repo.
+reeduca-crm-migracion/
+CRM a Migrar/

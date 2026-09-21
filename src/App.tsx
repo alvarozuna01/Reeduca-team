@@ -15,11 +15,16 @@ import Cuaderno from './views/Cuaderno'
 import Proyectos from './views/Proyectos'
 import Panel from './views/Panel'
 import Equipo from './views/Equipo'
+import CRM from './crm/CRM'
+import { CrmProvider } from './crm/CrmProvider'
+import { useCrm } from './crm/contexto'
 
 export default function App() {
   return (
     <AppProvider>
-      <Shell />
+      <CrmProvider>
+        <Shell />
+      </CrmProvider>
     </AppProvider>
   )
 }
@@ -31,6 +36,7 @@ interface EditorState {
 
 function Shell() {
   const { loading, currentUser, isAdmin, hasFlag } = useApp()
+  const { tieneAcceso: accesoCrm } = useCrm()
   const [rawView, setView] = useState<View>('midia')
   const [editor, setEditor] = useState<EditorState | null>(null)
   const [noteToOpen, setNoteToOpen] = useState<string | null>(null)
@@ -38,7 +44,8 @@ function Shell() {
   // Pestañas detrás de llave: si la llave está apagada, se muestra Mi Día.
   const view: View =
     (rawView === 'kickoff' && !hasFlag(FEATURE_KICKOFF)) ||
-    (rawView === 'panel' && !(hasFlag(FEATURE_PANEL) && isAdmin))
+    (rawView === 'panel' && !(hasFlag(FEATURE_PANEL) && isAdmin)) ||
+    (rawView === 'crm' && !accesoCrm)
       ? 'midia'
       : rawView
 
@@ -90,6 +97,7 @@ function Shell() {
             onNewTask={(defaults) => setEditor({ defaults: { date: todayKey(), ...defaults } })}
           />
         )}
+        {view === 'crm' && <CRM />}
         {view === 'equipo' && <Equipo onEditTask={(t) => setEditor({ task: t })} />}
       </main>
       <BottomNav view={view} setView={setView} />

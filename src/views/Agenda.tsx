@@ -25,6 +25,9 @@ import { useIsMobile } from '../lib/useIsMobile'
 import { usePref } from '../lib/usePref'
 import { useApp } from '../state/AppContext'
 import TaskCard from '../components/TaskCard'
+import { useCrm } from '../crm/contexto'
+import AccionesCrmDelDia from '../crm/AgendaCRM'
+import type { CrmAccion } from '../crm/tipos'
 import MultiFilter, { HideToggle } from '../components/MultiFilter'
 
 type Cols = Record<string, string[]>
@@ -58,6 +61,8 @@ export default function Agenda({
   const [userFilter, setUserFilter] = useState<string[]>([])
   const [hideDone, setHideDone] = usePref('agenda-ocultar-completadas', false)
   const [hideBacklog, setHideBacklog] = usePref('agenda-ocultar-sinfecha', false)
+  const [hideCrm, setHideCrm] = usePref('agenda-ocultar-crm', false)
+  const crm = useCrm()
   const days = useMemo(() => weekDays(anchor), [anchor])
   const dayKeys = useMemo(() => days.map(toKey), [days])
 
@@ -75,6 +80,20 @@ export default function Agenda({
     [tasks, projFilter, userFilter, hideDone],
   )
   const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks])
+
+  // Acciones del CRM de la semana (solo para quien tiene acceso al CRM).
+  // Con un filtro de proyecto activo no se muestran: no pertenecen a un proyecto.
+  const crmPorDia = useMemo(() => {
+    const m = new Map<string, CrmAccion[]>()
+    if (!crm.tieneAcceso || hideCrm || projFilter.length) return m
+    for (const a of crm.acciones) {
+      if (!a.fecha || !dayKeys.includes(a.fecha)) continue
+      if (hideDone && a.estado === 'CONCRETADO') continue
+      if (userFilter.length && !a.responsableIds.some((id) => userFilter.includes(id))) continue
+      m.set(a.fecha, [...(m.get(a.fecha) ?? []), a])
+    }
+    return m
+  }, [crm.tieneAcceso, crm.acciones, hideCrm, projFilter, hideDone, userFilter, dayKeys])
 
   const derived: Cols = useMemo(() => {
     const m: Cols = {}
@@ -206,6 +225,7 @@ export default function Agenda({
           <MultiFilter label="Personas" options={filterOpts.personas} selected={userFilter} onChange={setUserFilter} />
           <HideToggle hidden={hideDone} onChange={setHideDone} label="Completadas" />
           <HideToggle hidden={hideBacklog} onChange={setHideBacklog} label="Sin fecha" />
+          {crm.tieneAcceso && <HideToggle hidden={hideCrm} onChange={setHideCrm} label="CRM" />}
         </div>
       </div>
 
@@ -255,6 +275,7 @@ export default function Agenda({
                     onAdd={() => onNew({ date: dayKeys[dayIdx] })}
                   >
                     {cardsFor(dayKeys[dayIdx])}
+                    <AccionesCrmDelDia acciones={crmPorDia.get(dayKeys[dayIdx]) ?? []} />
                   </DayColumn>
                 )}
               </div>
@@ -275,6 +296,7 @@ export default function Agenda({
                     return (
                       <DayColumn key={key} date={d} ids={view[key] ?? []} onAdd={() => onNew({ date: key })}>
                         {cardsFor(key)}
+                        <AccionesCrmDelDia acciones={crmPorDia.get(key) ?? []} />
                       </DayColumn>
                     )
                   })}
