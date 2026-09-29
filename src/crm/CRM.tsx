@@ -239,6 +239,12 @@ function Desplegable({ id, titulo, n, color, abiertoInicial, children }: { id: s
 /* ---------------- El pipeline ---------------- */
 
 const ORDEN_SEGMENTOS = ['Colegio', 'Universidad', 'Academia', 'Otro']
+const PLURAL_SEGMENTO: Record<string, string> = {
+  Colegio: 'COLEGIOS',
+  Universidad: 'UNIVERSIDADES',
+  Academia: 'ACADEMIAS',
+  Otro: 'SIN SEGMENTO',
+}
 
 function Pipeline({ filas, modo }: { filas: Fila[]; modo: Modo }) {
   // Una venta aparece en cada desplegable donde tenga alguna acción pendiente.
@@ -266,7 +272,7 @@ function Pipeline({ filas, modo }: { filas: Fila[]; modo: Modo }) {
         {porSegmento.map((g, i) => (
           <div key={g.s}>
             <div className={`${i ? 'mt-3.5' : ''} mb-2 rounded-lg px-2.5 py-1.5 text-[12.5px] font-bold text-white`} style={{ background: LU.titulo }}>
-              {g.s === 'Otro' ? 'SIN SEGMENTO' : `${g.s.toUpperCase()}S`} · {g.filas.length}
+              {PLURAL_SEGMENTO[g.s]} · {g.filas.length}
             </div>
             {g.filas.map((f) => (
               <FilaOportunidad key={f.opp.id} fila={f} modo={modo} />
