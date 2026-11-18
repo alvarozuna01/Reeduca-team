@@ -1,5 +1,6 @@
 import { addDays } from 'date-fns'
 import { isDemo } from '../lib/api'
+import { leerTodo } from '../lib/paginado'
 import { supabase } from '../lib/supabaseClient'
 import { toKey, uid } from '../lib/utils'
 import type {
@@ -193,11 +194,22 @@ function check(error: { message: string } | null) {
   if (error) throw new Error(error.message)
 }
 
-// Tolerante: si las tablas todavía no existen (no se corrió el SQL), devuelve vacío.
-const leer = async (tabla: string, orden?: string) => {
-  const q = supabase!.from(tabla).select('*')
-  const r = await (orden ? q.order(orden, { ascending: false }) : q)
-  return r.error ? [] : (r.data ?? [])
+/**
+ * Tolerante: si las tablas todavía no existen (no se corrió el SQL), devuelve vacío.
+ * Pide de a tandas porque una consulta suelta se corta en 1000 filas sin avisar
+ * (ver src/lib/paginado.ts); `tope` acota las tablas que solo crecen.
+ */
+const leer = async (tabla: string, orden?: string, tope?: number) => {
+  const armar = (desde: number, hasta: number) => {
+    const q = supabase!.from(tabla).select('*')
+    return (orden ? q.order(orden, { ascending: false }) : q).range(desde, hasta)
+  }
+  if (tope) {
+    const r = await armar(0, tope - 1)
+    return r.error ? [] : (r.data ?? [])
+  }
+  const r = await leerTodo(armar)
+  return r.error ? [] : r.data
 }
 
 const supabaseCrm: CrmApi = {
@@ -211,7 +223,8 @@ const supabaseCrm: CrmApi = {
       leer('crm_oportunidades'),
       leer('crm_contactos'),
       leer('crm_interacciones'),
-      leer('crm_bitacora', 'fecha_hora'),
+      // La bitácora solo crece y la ficha muestra las últimas 60: alcanza con las 500 más nuevas.
+      leer('crm_bitacora', 'fecha_hora', 500),
     ])
     return {
       accesos: accesos.map(filaAAcceso),

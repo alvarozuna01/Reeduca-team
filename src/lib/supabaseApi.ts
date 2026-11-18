@@ -1,5 +1,6 @@
 import type { Consejo, DB, FeatureFlag, Hito, Kickoff, KickoffAnotacion, KickoffBriefing, Minute, Note, NoteFolder, Pin, Project, Task, TaskComment, User } from '../types'
 import type { Api } from './api'
+import { leerTodo } from './paginado'
 import { supabase } from './supabaseClient'
 
 /* Mapeo camelCase (app) <-> snake_case (Postgres) */
@@ -364,10 +365,12 @@ export const supabaseApi: Api = {
     const [users, projects, tasks, notes, folders, minutes] = await Promise.all([
       sb.from('profiles').select('*').order('name'),
       sb.from('projects').select('*').order('name'),
-      sb.from('tasks').select('*'),
-      sb.from('notes').select('*'),
+      // Tareas, notas y minutas se piden de a tandas: pasado el millar, una
+      // consulta suelta se corta sin avisar (ver src/lib/paginado.ts).
+      leerTodo((desde, hasta) => sb.from('tasks').select('*').range(desde, hasta)),
+      leerTodo((desde, hasta) => sb.from('notes').select('*').range(desde, hasta)),
       sb.from('note_folders').select('*').order('position'),
-      sb.from('minutes').select('*').order('date', { ascending: false }),
+      leerTodo((desde, hasta) => sb.from('minutes').select('*').order('date', { ascending: false }).range(desde, hasta)),
     ])
     check(users.error)
     check(projects.error)
@@ -379,7 +382,9 @@ export const supabaseApi: Api = {
     const pins = await sb.from('pins').select('*').then((r) => (r.error ? [] : (r.data ?? [])))
     const hitos = await sb.from('hitos').select('*').order('position').then((r) => (r.error ? [] : (r.data ?? [])))
     const flags = await sb.from('feature_flags').select('*').then((r) => (r.error ? [] : (r.data ?? [])))
-    const comments = await sb.from('task_comments').select('*').order('created_at').then((r) => (r.error ? [] : (r.data ?? [])))
+    const comments = await leerTodo((desde, hasta) =>
+      sb.from('task_comments').select('*').order('created_at').range(desde, hasta),
+    ).then((r) => (r.error ? [] : r.data))
     const consejos = await sb.from('consejos').select('*').then((r) => (r.error ? [] : (r.data ?? [])))
     const kickoffs = await sb.from('kickoffs').select('*').then((r) => (r.error ? [] : (r.data ?? [])))
     const briefings = await sb.from('kickoff_briefings').select('*').then((r) => (r.error ? [] : (r.data ?? [])))
