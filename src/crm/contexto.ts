@@ -24,10 +24,14 @@ export interface CrmCtx extends CrmDB {
   abrirNuevaInstitucion: () => void
 }
 
-/** Datos para arrancar una acción nueva (la ventana completa el resto). */
+/**
+ * Datos para arrancar una acción nueva (la ventana completa el resto).
+ * Sin `institucionId` (se carga desde la Agenda, que no tiene una puesta de
+ * antemano) la ventana la pide con el buscador antes de dejar guardar.
+ */
 export interface NuevaAccion {
   nueva: true
-  institucionId: string
+  institucionId?: string
   oportunidadId?: string | null
   esLnr?: boolean
   fecha?: string | null

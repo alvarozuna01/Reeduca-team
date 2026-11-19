@@ -275,7 +275,7 @@ export default function Agenda({
                     onAdd={() => onNew({ date: dayKeys[dayIdx] })}
                   >
                     {cardsFor(dayKeys[dayIdx])}
-                    <AccionesCrmDelDia acciones={crmPorDia.get(dayKeys[dayIdx]) ?? []} />
+                    <AccionesCrmDelDia acciones={crmPorDia.get(dayKeys[dayIdx]) ?? []} fecha={dayKeys[dayIdx]} />
                   </DayColumn>
                 )}
               </div>
@@ -296,7 +296,7 @@ export default function Agenda({
                     return (
                       <DayColumn key={key} date={d} ids={view[key] ?? []} onAdd={() => onNew({ date: key })}>
                         {cardsFor(key)}
-                        <AccionesCrmDelDia acciones={crmPorDia.get(key) ?? []} />
+                        <AccionesCrmDelDia acciones={crmPorDia.get(key) ?? []} fecha={key} />
                       </DayColumn>
                     )
                   })}

@@ -21,18 +21,21 @@ export default function AccionEditor({ inicial, onClose }: { inicial: CrmAccion 
   const { currentUser } = useApp()
   const { instituciones, oportunidades, acciones, guardarAccion, borrarAccion, abrirFicha } = useCrm()
   const esNueva = 'nueva' in inicial
+  /** Se cargó desde la Agenda, sin institución: hay que pedirla antes de guardar. */
+  const pideInstitucion = esNueva && !inicial.institucionId
   const oppsDe = (institucionId: string) => oportunidades.filter((o) => o.institucionId === institucionId)
-  const oppsInst = oppsDe(inicial.institucionId)
+  const oppsInst = oppsDe(inicial.institucionId ?? '')
   const [moviendo, setMoviendo] = useState(false)
 
   const [draft, setDraft] = useState<CrmAccion>(() =>
     esNueva
       ? {
           id: uid(),
-          institucionId: inicial.institucionId,
+          institucionId: inicial.institucionId ?? '',
           oportunidadId: inicial.esLnr ? null : (inicial.oportunidadId ?? oppsInst.find((o) => tipoDe(o.etapa) !== 'perdida')?.id ?? null),
           esLnr: !!inicial.esLnr,
           orden: Math.max(0, ...acciones.filter((a) => a.institucionId === inicial.institucionId).map((a) => a.orden)) + 1,
+          // Si no hay institución todavía, se recalcula al elegirla (ver moverA).
           accion: '',
           fecha: inicial.fecha !== undefined ? inicial.fecha : todayKey(),
           responsableIds: currentUser ? [currentUser.id] : [],
@@ -67,6 +70,15 @@ export default function AccionEditor({ inicial, onClose }: { inicial: CrmAccion 
     setMoviendo(false)
   }
 
+  /** Desde la Agenda: elegir la institución arma también la venta y el orden. */
+  const elegirInst = (id: string | null) => {
+    if (!id) {
+      setDraft((d) => ({ ...d, institucionId: '', oportunidadId: null }))
+      return
+    }
+    moverA(id)
+  }
+
   const vinculo = draft.esLnr ? 'lnr' : (draft.oportunidadId ?? '')
   const cambiarVinculo = (v: string) =>
     setDraft((d) => (v === 'lnr' ? { ...d, esLnr: true, oportunidadId: null } : { ...d, esLnr: false, oportunidadId: v || null }))
@@ -86,7 +98,13 @@ export default function AccionEditor({ inicial, onClose }: { inicial: CrmAccion 
   return (
     <Modal title={esNueva ? 'Nueva acción' : 'Acción del CRM'} onClose={onClose}>
       <div className="space-y-4">
-        {institucion && (
+        {pideInstitucion && (
+          <FieldDiv label="Institución">
+            <ElegirInstitucion value={draft.institucionId || null} onChange={elegirInst} autoFocus />
+          </FieldDiv>
+        )}
+
+        {institucion && !pideInstitucion && (
           <button
             type="button"
             onClick={() => {
@@ -103,7 +121,7 @@ export default function AccionEditor({ inicial, onClose }: { inicial: CrmAccion 
 
         <Field label="Acción">
           <textarea
-            autoFocus={esNueva}
+            autoFocus={esNueva && !pideInstitucion}
             rows={2}
             value={draft.accion}
             onChange={(e) => set('accion', e.target.value)}
@@ -112,6 +130,7 @@ export default function AccionEditor({ inicial, onClose }: { inicial: CrmAccion 
           />
         </Field>
 
+        {!!draft.institucionId && (
         <Field label="Es parte de">
           <select value={vinculo} onChange={(e) => cambiarVinculo(e.target.value)} className={inputCls}>
             {oppsDraft.map((o) => (
@@ -124,6 +143,7 @@ export default function AccionEditor({ inicial, onClose }: { inicial: CrmAccion 
             <option value="">Sin venta asociada</option>
           </select>
         </Field>
+        )}
 
         {!esNueva &&
           (moviendo ? (
@@ -142,7 +162,7 @@ export default function AccionEditor({ inicial, onClose }: { inicial: CrmAccion 
               <CornerDownRight size={13} /> Mover a otra institución
             </button>
           ))}
-        {draft.institucionId !== inicial.institucionId && (
+        {!esNueva && draft.institucionId !== inicial.institucionId && (
           <p className="-mt-2 rounded-lg bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-700">
             Al guardar, la acción pasa de «{instituciones.find((i) => i.id === inicial.institucionId)?.nombre}» a «{institucion?.nombre}».
           </p>
@@ -213,7 +233,7 @@ export default function AccionEditor({ inicial, onClose }: { inicial: CrmAccion 
             </button>
             <button
               onClick={guardar}
-              disabled={!draft.accion.trim()}
+              disabled={!draft.accion.trim() || !draft.institucionId}
               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-extrabold text-white hover:bg-blue-700 disabled:opacity-40"
             >
               Guardar
