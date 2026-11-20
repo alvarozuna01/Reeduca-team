@@ -35,8 +35,9 @@ create policy "feature_flags_write_admin" on public.feature_flags
 do $$ begin alter publication supabase_realtime add table public.feature_flags; exception when duplicate_object then null; end $$;
 
 -- 3) Llave FEATURE_PANEL prendida SOLO para el Gerente General.
---    El Panel es una pestaña exclusiva de Gerentes; además, con la llave
---    cada persona ve en sus tareas el botón "Necesita decisión del Gerente".
+--    El Panel es una pestaña exclusiva de Gerentes.
+--    (Desde el 2026-09-22 el interruptor "Necesita decisión del Gerente" de
+--     la ventana de tarea ya NO depende de esta llave: lo ve todo el equipo.)
 insert into public.feature_flags (flag, user_id, enabled)
 select 'FEATURE_PANEL', p.id, true
 from public.profiles p

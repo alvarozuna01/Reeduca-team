@@ -14,6 +14,9 @@ Plataforma web de gestión de equipos, tareas, proyectos y RRHH. Incluye:
 - **Proyectos** con color identificativo (las tarjetas del calendario se pintan solas).
 - Tareas con descripción, fecha, horas, responsables múltiples, checklist y enlaces (Drive, Notion…).
 
+> **Documentación completa del sistema:** [`docs/`](docs/README.md) — qué hace cada módulo
+> (SRS), cómo están guardados los datos, cómo se publica y qué conviene revisar.
+
 **Stack (costo $0/mes):** React + Vite + TypeScript · Tailwind CSS · dnd-kit · Supabase (base de datos + login) · Vercel (hosting).
 
 ---
