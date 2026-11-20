@@ -49,7 +49,7 @@ Tres aclaraciones de lectura:
 | C2 | Volver a correr `migracion-comentarios.sql` **vuelve a prender los comentarios para todo el equipo** | Latente | `supabase/migracion-comentarios.sql:80` usa `do update set enabled = true`, contra lo que dice su propio comentario |
 | C3 | Volver a correr `schema.sql` **desharía la adopción de perfiles** que instaló la migración de datos | Latente | `supabase/schema.sql:94-110` vs `supabase/migracion-datos.sql:18-49` |
 | C4 | `tasks.importance` puede no tener su restricción de rango, según cómo se armó la base | Latente | Está en `supabase/schema.sql:49` pero no en las migraciones de fase 2 y 3 |
-| C5 | En el CRM se guardan campos que **no se muestran en ninguna parte**: el enlace de una acción, el valor y las horas, las notas del contacto, el equipamiento de la institución | Latente | `src/crm/AccionEditor.tsx:193-200`, `src/crm/tipos.ts` |
+| C5 | En el CRM se guardan campos que **no se muestran en ninguna parte**: el enlace de una acción, el valor y las horas, las notas del contacto, el equipamiento de la institución | Latente | `src/crm/AccionEditor.tsx:213-220`, `src/crm/tipos.ts` |
 | C6 | Crear o editar un contacto del CRM **no queda en la bitácora**; borrarlo sí | Detalle | `src/crm/CrmProvider.tsx:202-211` |
 | C7 | En Mi Día, el tope de menciones se aplica después de juntar comentarios y descripciones | Detalle | `src/views/MiDia.tsx:91`: con muchas menciones en comentarios, las de descripciones no se ven |
 | C8 | La pantalla Equipo sigue titulada "Panel del Gerente", igual que el módulo Panel | Detalle | `src/views/Equipo.tsx:80` |

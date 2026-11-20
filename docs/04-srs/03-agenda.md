@@ -37,7 +37,8 @@ Entra cualquier persona con sesión y ve las tareas de todo el equipo.
 | Tildar un ítem del checklist en la tarjeta | Igual que arriba: si no puede editar, los casilleros salen deshabilitados (`src/views/Agenda.tsx:189`) |
 | Crear una tarea con el botón "Agregar" de un día | Cualquiera. La tarea nace con la fecha de ese día ya puesta (`src/views/Agenda.tsx:297`) |
 | Ver el bloque del CRM | Solo quien está en la lista de acceso al CRM (`src/views/Agenda.tsx:88`) |
-| Marcar hecha una gestión del CRM desde la Agenda | Quien tiene acceso al CRM (`src/crm/AgendaCRM.tsx:45`) |
+| Marcar hecha una gestión del CRM desde la Agenda | Quien tiene acceso al CRM (`src/crm/AgendaCRM.tsx:71`) |
+| Cargar una gestión del CRM en un día | Quien tiene acceso al CRM (`src/crm/AgendaCRM.tsx:22`). La ventana pide la institución antes de dejar guardar |
 
 La regla de edición es la misma de siempre, `canEditTask` (`src/lib/utils.ts:32-36`). Ver RN-TAR-01 en
 `01-tareas.md`.
@@ -95,16 +96,17 @@ entra a la pantalla (`src/views/Agenda.tsx:60-61`).
 | RF-AGE-21 | El sistema debe permitir esconder la bandeja de tareas sin fecha, y recordarlo | Ojito "Sin fecha". Al esconderla, la semana se ensancha | `src/views/Agenda.tsx:63`, `:227`, `:287-292` |
 | RF-AGE-22 | El sistema debe mostrar, dentro de cada día, las gestiones del CRM agendadas para ese día | Solo para quien tiene acceso al CRM | `src/views/Agenda.tsx:86-96`, `:278`, `:299` |
 | RF-AGE-23 | El sistema debe permitir esconder el bloque del CRM, y recordarlo | Ojito "CRM", que **solo aparece** si la persona tiene acceso al CRM | `src/views/Agenda.tsx:64`, `:228` |
-| RF-AGE-24 | El bloque del CRM debe poder plegarse y desplegarse, y arrancar plegado cuando hay muchas gestiones | Arranca abierto con 3 gestiones o menos; con 4 o más arranca cerrado | `src/crm/AgendaCRM.tsx:14`, `:20-28` |
-| RF-AGE-25 | El bloque del CRM debe mostrar cuántas gestiones hay y cuántas están pendientes | "5 · 3 pend.". El "pend." solo aparece si hay algunas hechas y otras no | `src/crm/AgendaCRM.tsx:16`, `:23-26` |
-| RF-AGE-26 | Cada gestión del CRM debe mostrar un punto de color según su estado, el nombre de la institución y el texto de la gestión | Verde = hecha, naranja = pendiente, rojo = vencida. El nombre va tachado si está hecha | `src/crm/AgendaCRM.tsx:36-42`, `src/crm/reglas.ts:18-28` |
-| RF-AGE-27 | Tocar una gestión del CRM debe abrir su ventana de edición, sin salir de la Agenda | Es la misma ventana del CRM | `src/crm/AgendaCRM.tsx:37`, `src/crm/contexto.ts:22` |
-| RF-AGE-28 | El sistema debe permitir marcar hecha una gestión del CRM con el tilde, desde la Agenda | El botón del tilde solo aparece en las que no están hechas | `src/crm/AgendaCRM.tsx:43-51`, `src/crm/reglas.ts:71` |
+| RF-AGE-24 | El bloque del CRM debe poder plegarse y desplegarse, y arrancar plegado cuando hay muchas gestiones | Arranca abierto con 3 gestiones o menos; con 4 o más arranca cerrado | `src/crm/AgendaCRM.tsx:18`, `:38-46` |
+| RF-AGE-25 | El bloque del CRM debe mostrar cuántas gestiones hay y cuántas están pendientes | "5 · 3 pend.". El "pend." solo aparece si hay algunas hechas y otras no | `src/crm/AgendaCRM.tsx:21`, `:41-44` |
+| RF-AGE-26 | Cada gestión del CRM debe mostrar un punto de color según su estado, el nombre de la institución y el texto de la gestión | Verde = hecha, naranja = pendiente, rojo = vencida. El nombre va tachado si está hecha | `src/crm/AgendaCRM.tsx:62-68`, `src/crm/reglas.ts:18-28` |
+| RF-AGE-27 | Tocar una gestión del CRM debe abrir su ventana de edición, sin salir de la Agenda | Es la misma ventana del CRM | `src/crm/AgendaCRM.tsx:63`, `src/crm/contexto.ts:22` |
+| RF-AGE-28 | El sistema debe permitir marcar hecha una gestión del CRM con el tilde, desde la Agenda | El botón del tilde solo aparece en las que no están hechas | `src/crm/AgendaCRM.tsx:69-77`, `src/crm/reglas.ts:71` |
 | RF-AGE-29 | En celular, el sistema debe mostrar un solo día a la vez, con una fila de pastillas para elegir el día | La pastilla del día elegido queda azul; la de hoy queda con el número en azul | `src/views/Agenda.tsx:240-283`, `:384-404` |
 | RF-AGE-30 | En celular, las pastillas de día y la de la bandeja deben aceptar tarjetas soltadas encima | Al arrastrar sobre una pastilla, esta se agranda y se pinta de celeste | `src/views/Agenda.tsx:44`, `:364`, `:387` |
 | RF-AGE-31 | En celular, el sistema debe explicar en pantalla cómo mover una tarjeta | "Mantené apretada una tarjeta y soltala sobre un día (o sobre 📥) para moverla." | `src/views/Agenda.tsx:262-264` |
 | RF-AGE-32 | En celular, la bandeja debe abrirse como una pantalla completa con su propia pastilla | La pastilla de la bandeja muestra el ícono de bandeja y el contador | `src/views/Agenda.tsx:243-249`, `:267-269` |
 | RF-AGE-33 | El sistema debe reflejar los cambios de otras personas sin recargar la página | Llega por tiempo real de la base | `src/state/AppContext.tsx:224-258` |
+| RF-AGE-34 | El sistema debe permitir **cargar una gestión del CRM** desde cualquier día de la Agenda | El "+" del bloque celeste cuando el día ya tiene gestiones; una línea punteada "+ Gestión CRM" cuando no tiene ninguna. Solo para quien tiene acceso al CRM | `src/crm/AgendaCRM.tsx:22`, `:25-33`, `:47-53` |
 
 ## 5. Reglas de negocio y cálculos
 
@@ -171,8 +173,10 @@ visible.
 `:299`), en un recuadro celeste con el rótulo "CRM" y el ícono de las manos que se saludan.
 
 **Estados vacíos.** Un día sin tareas muestra solo su encabezado y el botón "+ Agregar". La bandeja
-vacía muestra "0" en el contador. Un día sin gestiones del CRM no muestra el bloque azul
-(`src/crm/AgendaCRM.tsx:15`).
+vacía muestra "0" en el contador. Un día sin gestiones del CRM no muestra el recuadro celeste:
+en su lugar, a quien tiene acceso al CRM le muestra una línea punteada "+ Gestión CRM"
+(`src/crm/AgendaCRM.tsx:25-33`). A quien no tiene acceso no le muestra nada
+(`src/crm/AgendaCRM.tsx:19`).
 
 **Carga.** No hay pantalla de carga propia: mientras la aplicación trae los datos se ve el girador
 general "Cargando…" (`src/App.tsx:52-61`).

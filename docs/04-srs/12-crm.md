@@ -117,16 +117,16 @@ Es la tabla más usada del módulo: cada gestión que se hizo o que hay que hace
 | Campo | Qué significa | De dónde sale |
 |---|---|---|
 | `institucion_id` | A qué institución pertenece la gestión | Editor de acción |
-| `oportunidad_id` | De qué venta es parte. Puede quedar vacío ("sin venta asociada"); si se borra la oportunidad, queda vacío (`on delete set null`) | Editor de acción (`src/crm/AccionEditor.tsx:115-126`) |
+| `oportunidad_id` | De qué venta es parte. Puede quedar vacío ("sin venta asociada"); si se borra la oportunidad, queda vacío (`on delete set null`) | Editor de acción (`src/crm/AccionEditor.tsx:133-146`) |
 | `es_lnr` | Invitación a la Liga: va aparte de la venta y de la posventa | Editor de acción, opción "Invitación a la Liga (LNR)" |
 | `orden` | El número correlativo que tenía la planilla. Ordena la cadena | Se calcula al crear o al mover (RN-CRM-08) |
-| `accion` | Qué hay que hacer o qué se hizo. Obligatorio para guardar (`src/crm/AccionEditor.tsx:216`) | Editor de acción |
+| `accion` | Qué hay que hacer o qué se hizo. Obligatorio para guardar (`src/crm/AccionEditor.tsx:236`) | Editor de acción |
 | `fecha` | Día de la gestión (`YYYY-MM-DD`). Puede quedar vacía | Editor de acción o el campo de fecha del bloque |
 | `responsable_ids` | Quién la hace | Editor de acción; por defecto, quien la crea |
 | `estado` | `PENDIENTE`, `EN PROCESO` o `CONCRETADO`. La base solo acepta esos tres (`supabase/migracion-crm-1-esquema.sql:111`) | Editor de acción o el botón "✓ hecha" |
 | `tipo` | Tipo de acción (`llamada`, `mensaje`, `mail`, `reunion`, `flyer`, `presupuesto`, `lnr`, `respuesta`, `teavisamos`, `otro`) | Desplegable del bloque o del editor; en el alta de oportunidad se adivina por el texto (RN-CRM-10) |
 | `horas` | Horas dedicadas | Ninguna pantalla lo carga hoy |
-| `link` | Enlace a la propuesta, presupuesto o mail | Editor de acción (`src/crm/AccionEditor.tsx:193-200`). Se guarda pero hoy no se muestra en ninguna parte |
+| `link` | Enlace a la propuesta, presupuesto o mail | Editor de acción (`src/crm/AccionEditor.tsx:213-220`). Se guarda pero hoy no se muestra en ninguna parte |
 | `created_at` | Cuándo se creó | La app |
 
 ### `crm_bitacora` — quién cambió qué (`supabase/migracion-crm-1-esquema.sql:121-132`, tipo en `src/crm/tipos.ts:92-102`)
@@ -168,20 +168,20 @@ Es la tabla más usada del módulo: cada gestión que se hizo o que hay que hace
 | RF-CRM-21 | En la pestaña Posventa, en lugar de la etapa se debe mostrar el **estado de posventa** | Con la opción "🩺 sin clasificar" cuando está vacío, y conservando un valor viejo que no esté en la lista | `src/crm/CRM.tsx:367-374` |
 | RF-CRM-22 | La cadena de acciones debe arrancar mostrando el final (lo pendiente) y poder deslizarse de costado | Lo viejo queda a la izquierda | `src/crm/CRM.tsx:311-308`, `src/crm/CRM.tsx:397-394` |
 | RF-CRM-23 | Cada fila debe tener un botón **"+ acción"** al final de la cadena | Abre el editor con la institución y la oportunidad ya puestas | `src/crm/CRM.tsx:401-401` |
-| RF-CRM-24 | Tocar el nombre de la institución debe abrir su **ficha** | Desde el pipeline, desde el directorio y desde el editor de acción | `src/crm/CRM.tsx:344-341`, `src/crm/CRM.tsx:466-462`, `src/crm/AccionEditor.tsx:89-102` |
+| RF-CRM-24 | Tocar el nombre de la institución debe abrir su **ficha** | Desde el pipeline, desde el directorio y desde el editor de acción | `src/crm/CRM.tsx:344-341`, `src/crm/CRM.tsx:466-462`, `src/crm/AccionEditor.tsx:107-120` |
 | RF-CRM-25 | Cada acción debe mostrarse como un bloque con el color del semáforo: **verde** hecha, **naranja** pendiente, **rojo** vencida | Borde izquierdo y fondo del color; la leyenda de colores está arriba del pipeline | `src/crm/BloqueAccion.tsx:19-20`, `src/crm/BloqueAccion.tsx:45`, `src/crm/reglas.ts:24-28`, `src/crm/CRM.tsx:156` |
 | RF-CRM-26 | Cada bloque debe mostrar el texto de la acción, el **ícono del tipo**, la fecha (o "sin fecha"), los primeros nombres de los responsables y el estado | La fecha se escribe en criollo: `2 nov 2026` | `src/crm/BloqueAccion.tsx:47-53`, `src/crm/estilo.ts:42-46`, `src/crm/estilo.ts:49-53` |
 | RF-CRM-27 | Tocar un bloque debe abrir su **edición rápida**: "✓ hecha", "✏️ editar", cambiar la fecha y cambiar el tipo | Se abre y se cierra tocando el bloque; también con Enter o espacio desde el teclado. Los controles de adentro no lo cierran | `src/crm/BloqueAccion.tsx:34-40`, `src/crm/BloqueAccion.tsx:55-101` |
 | RF-CRM-28 | El botón **"✓ hecha"** debe marcar la acción como `CONCRETADO` y ponerle la **fecha de hoy** | No aparece si la acción ya está hecha | `src/crm/BloqueAccion.tsx:59-68`, `src/crm/reglas.ts:71`, `src/crm/CrmProvider.tsx:215-217` |
 | RF-CRM-29 | El campo de fecha de la edición rápida debe guardar solo cuando la fecha está completa | Mientras se tipea el año pasa por valores inválidos (0002, 0020…); solo se acepta `20xx-xx-xx` | `src/crm/BloqueAccion.tsx:82-85` |
 | RF-CRM-30 | En computadora, el sistema debe permitir **arrastrar una acción y soltarla sobre otra institución** para moverla | El destino se resalta con un borde punteado mientras se arrastra. El bloque no se puede arrastrar si tiene la edición rápida abierta | `src/crm/BloqueAccion.tsx:26-33`, `src/crm/CRM.tsx:316-333`, `src/crm/estilo.ts:56` |
-| RF-CRM-31 | En celular, donde no se puede arrastrar, el sistema debe permitir mover la acción desde el **editor**, con el botón "Mover a otra institución" | El aviso de arrastrar solo se muestra en pantallas grandes | `src/crm/AccionEditor.tsx:128-144`, `src/crm/CRM.tsx:155` |
-| RF-CRM-32 | Antes de guardar un movimiento desde el editor, el sistema debe avisar de dónde a dónde va la acción | Cartel amarillo con el nombre de las dos instituciones | `src/crm/AccionEditor.tsx:145-149` |
-| RF-CRM-33 | El editor de acción debe permitir crear o editar una acción con: texto, a qué venta pertenece, fecha, tipo, estado, responsables y enlace | Se abre desde el pipeline, la ficha o la Agenda | `src/crm/AccionEditor.tsx:20`, `src/crm/AccionEditor.tsx:104-200` |
-| RF-CRM-34 | En una acción nueva, el sistema debe proponer: la oportunidad de la fila (o la primera venta no perdida), la fecha de **hoy**, estado `PENDIENTE`, tipo `llamada` y como responsable a quien la está creando | Si se abre como invitación LNR, arranca sin oportunidad y con tipo `lnr` | `src/crm/AccionEditor.tsx:28-46` |
-| RF-CRM-35 | El campo "Es parte de" debe permitir elegir entre las ventas de esa institución, **"Invitación a la Liga (LNR)"** o **"Sin venta asociada"** | Cada venta se lista como Venta / Posventa / Venta perdida, con su modalidad y su etapa | `src/crm/AccionEditor.tsx:115-126`, `src/crm/AccionEditor.tsx:70-72` |
-| RF-CRM-36 | El sistema no debe permitir guardar una acción sin texto | El botón "Guardar" queda apagado; al guardar, se le quitan los espacios sobrantes al texto y al enlace | `src/crm/AccionEditor.tsx:74-77`, `src/crm/AccionEditor.tsx:216` |
-| RF-CRM-37 | El sistema debe permitir borrar una acción, con confirmación y avisando que queda en la bitácora | Solo en acciones ya existentes | `src/crm/AccionEditor.tsx:79-84`, `src/crm/CrmProvider.tsx:229-239` |
+| RF-CRM-31 | En celular, donde no se puede arrastrar, el sistema debe permitir mover la acción desde el **editor**, con el botón "Mover a otra institución" | El aviso de arrastrar solo se muestra en pantallas grandes | `src/crm/AccionEditor.tsx:148-164`, `src/crm/CRM.tsx:155` |
+| RF-CRM-32 | Antes de guardar un movimiento desde el editor, el sistema debe avisar de dónde a dónde va la acción | Cartel amarillo con el nombre de las dos instituciones | `src/crm/AccionEditor.tsx:165-169` |
+| RF-CRM-33 | El editor de acción debe permitir crear o editar una acción con: texto, a qué venta pertenece, fecha, tipo, estado, responsables y enlace | Se abre desde el pipeline, la ficha o la Agenda | `src/crm/AccionEditor.tsx:20`, `src/crm/AccionEditor.tsx:122-220` |
+| RF-CRM-34 | En una acción nueva, el sistema debe proponer: la oportunidad de la fila (o la primera venta no perdida), la fecha de **hoy**, estado `PENDIENTE`, tipo `llamada` y como responsable a quien la está creando | Si se abre como invitación LNR, arranca sin oportunidad y con tipo `lnr`. Si se abre desde la Agenda, la fecha es la del día tocado, no la de hoy | `src/crm/AccionEditor.tsx:30-49` |
+| RF-CRM-35 | El campo "Es parte de" debe permitir elegir entre las ventas de esa institución, **"Invitación a la Liga (LNR)"** o **"Sin venta asociada"** | Cada venta se lista como Venta / Posventa / Venta perdida, con su modalidad y su etapa | `src/crm/AccionEditor.tsx:133-146`, `src/crm/AccionEditor.tsx:82-84` |
+| RF-CRM-36 | El sistema no debe permitir guardar una acción sin texto ni sin institución | El botón "Guardar" queda apagado; al guardar, se le quitan los espacios sobrantes al texto y al enlace | `src/crm/AccionEditor.tsx:86-89`, `src/crm/AccionEditor.tsx:236` |
+| RF-CRM-37 | El sistema debe permitir borrar una acción, con confirmación y avisando que queda en la bitácora | Solo en acciones ya existentes | `src/crm/AccionEditor.tsx:91-96`, `src/crm/CrmProvider.tsx:229-239` |
 | RF-CRM-38 | El tipo de acción debe elegirse de una lista **agrupada**: "Contacto nuestro", "LNR (aparte de ventas)" y "Respuesta del colegio" | Si el dato guardado no está en la lista (por ejemplo, viene de la planilla), se conserva como opción extra | `src/crm/OpcionesTipo.tsx:3-7`, `src/crm/OpcionesTipo.tsx:13` |
 | RF-CRM-39 | El sistema debe permitir dar de alta una institución con nombre, segmento y ciudad, y **opcionalmente su primera oportunidad** en "CONTACTO INICIAL" | La casilla viene marcada; si se deja marcada, se pide la modalidad | `src/crm/NuevaInstitucion.tsx:21-35`, `src/crm/NuevaInstitucion.tsx:60-74` |
 | RF-CRM-40 | Al dar de alta una institución, el sistema debe avisar si ya existe una con el mismo nombre | Compara sin tildes ni mayúsculas. Es un aviso: no bloquea el alta | `src/crm/NuevaInstitucion.tsx:19`, `src/crm/NuevaInstitucion.tsx:43-47` |
@@ -202,8 +202,8 @@ Es la tabla más usada del módulo: cada gestión que se hizo o que hay que hace
 | RF-CRM-55 | La pestaña Contactos debe permitir cargar contactos (nombre, rol, teléfono, mail) y borrarlos con confirmación | El teléfono queda como enlace para llamar y el mail para escribir. El nombre es obligatorio | `src/crm/Ficha.tsx:311-365` |
 | RF-CRM-56 | La pestaña Historial debe listar **todas** las acciones de la institución, de la más nueva a la más vieja, con su punto de color, su fecha, su tipo y de qué venta era | Tocar una la abre en el editor | `src/crm/Ficha.tsx:134-173` |
 | RF-CRM-57 | La pestaña Bitácora debe mostrar los últimos 60 movimientos de esa institución, con fecha, hora, quién, el verbo del cambio y el detalle | Si no hay, dice "Sin cambios registrados." | `src/crm/Ficha.tsx:175-191` |
-| RF-CRM-58 | La **Agenda semanal** debe mostrar las acciones del CRM de cada día en un bloque propio, marcado "CRM" | Con la cantidad y cuántas están pendientes. Se despliega solo si el día tiene 3 o menos | `src/crm/AgendaCRM.tsx:12-28`, `src/views/Agenda.tsx:278`, `src/views/Agenda.tsx:299` |
-| RF-CRM-59 | En la Agenda, cada acción del CRM debe mostrar el nombre de la institución y el texto de la acción, con su punto de color, y permitir abrirla o marcarla como hecha | Las hechas se muestran tachadas | `src/crm/AgendaCRM.tsx:31-54` |
+| RF-CRM-58 | La **Agenda semanal** debe mostrar las acciones del CRM de cada día en un bloque propio, marcado "CRM" | Con la cantidad y cuántas están pendientes. Se despliega solo si el día tiene 3 o menos | `src/crm/AgendaCRM.tsx:16-54`, `src/views/Agenda.tsx:278`, `src/views/Agenda.tsx:299` |
+| RF-CRM-59 | En la Agenda, cada acción del CRM debe mostrar el nombre de la institución y el texto de la acción, con su punto de color, y permitir abrirla o marcarla como hecha | Las hechas se muestran tachadas | `src/crm/AgendaCRM.tsx:57-80` |
 | RF-CRM-60 | La Agenda debe mostrar las acciones del CRM solo a quien tiene acceso, y respetar sus filtros | Se esconden si hay un filtro de proyecto activo (las acciones no pertenecen a un proyecto); el filtro de personas se aplica sobre los responsables; "ocultar completadas" también las oculta | `src/views/Agenda.tsx:84-96` |
 | RF-CRM-61 | La Agenda debe tener un interruptor "CRM" para ocultar ese bloque, que se recuerda en el navegador | Solo se muestra a quien tiene acceso | `src/views/Agenda.tsx:64`, `src/views/Agenda.tsx:228` |
 | RF-CRM-62 | El sistema debe anotar en la **bitácora** cada creación, edición, movimiento o borrado del CRM | Con quién, cuándo, la institución, de qué venta era, la acción y el detalle | `src/crm/CrmProvider.tsx:112-122` |
@@ -215,6 +215,8 @@ Es la tabla más usada del módulo: cada gestión que se hizo o que hay que hace
 | RF-CRM-68 | En modo demo, si se cambia el CRM en otra pestaña del navegador, esta se debe enterar | Escucha el evento de almacenamiento del navegador | `src/crm/CrmProvider.tsx:62-69` |
 | RF-CRM-69 | Si las tablas del CRM todavía no existen (no se corrió el SQL), el sistema debe mostrarse vacío en lugar de romperse | Cada lectura que falla devuelve una lista vacía | `src/crm/crmApi.ts:196-201` |
 | RF-CRM-70 | Mientras carga, el CRM debe mostrar "Cargando el CRM…" | Después muestra el pipeline | `src/crm/CRM.tsx:66` |
+| RF-CRM-71 | La Agenda debe permitir **cargar una gestión nueva** en el día que se está mirando | El "+" del bloque celeste, o la línea punteada "+ Gestión CRM" si el día no tiene ninguna. La ventana se abre con la fecha de ese día ya puesta | `src/crm/AgendaCRM.tsx:22`, `:25-33`, `:47-53` |
+| RF-CRM-72 | En una gestión cargada desde la Agenda, el editor debe **pedir la institución** antes de dejar guardar | Desde la Agenda no hay una institución puesta de antemano: se busca con el mismo buscador de "Mover a otra institución". Al elegirla, la gestión queda enganchada a su venta abierta y al final de la cadena. Hasta entonces, "Guardar" está apagado | `src/crm/AccionEditor.tsx:25`, `:73-80`, `:101-105`, `:236`, `src/crm/contexto.ts:34` |
 
 ## 5. Reglas de negocio y cálculos
 
@@ -272,7 +274,7 @@ otro día, hay que corregir la fecha a mano en el editor.
 - Al mover, la acción deja de ser LNR (`esLnr` pasa a falso).
 - Soltar una acción sobre la oportunidad en la que ya está no hace nada.
 
-**RN-CRM-09 · A qué venta va una acción movida desde el editor** (`src/crm/AccionEditor.tsx:52-68`):
+**RN-CRM-09 · A qué venta va una acción movida desde el editor** (`src/crm/AccionEditor.tsx:55-71`):
 se busca en la institución de destino una venta **no perdida con la misma modalidad**; si no hay, la
 primera venta no perdida; si tampoco, la primera oportunidad que tenga. Si la institución no tiene
 ninguna, la acción queda sin venta asociada.
@@ -563,7 +565,7 @@ ejemplo desde la Agenda) y usan la tipografía del resto del sistema (`src/crm/C
    (`src/crm/tipos.ts:72`), los equipos por línea (`eq_intelliq`, `eq_v5`, `eq_universo`) ni la marca
    `activo`: se guardan y viajan, pero no hay campo para editarlas.
 4. **El enlace de una acción se guarda pero no se ve.** El editor permite cargarlo
-   (`src/crm/AccionEditor.tsx:193-200`), pero ningún bloque, chip ni historial lo muestra ni lo hace
+   (`src/crm/AccionEditor.tsx:213-220`), pero ningún bloque, chip ni historial lo muestra ni lo hace
    clicable.
 5. **El producto de una oportunidad solo se puede cargar al crearla** y después no se ve ni se edita
    en ninguna parte (`src/crm/NuevaOportunidad.tsx:104-106`).
